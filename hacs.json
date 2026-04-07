@@ -1,0 +1,8 @@
+{
+  "name": "Grainfather",
+  "content_in_root": false,
+  "country": ["*"],
+  "domains": ["sensor"],
+  "homeassistant": ">=2025.1.0",
+  "render_readme": true
+}

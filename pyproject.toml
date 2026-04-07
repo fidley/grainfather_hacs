@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ha-grainfather"
+version = "0.1.0"
+description = "Home Assistant custom integration for Grainfather"
+readme = "README.md"
+requires-python = ">=3.13"
+authors = [{ name = "GitHub Copilot" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+	"homeassistant>=2025.1.0",
+	"pytest>=8.0.0",
+	"pytest-asyncio>=0.23.0",
+	"ruff>=0.11.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

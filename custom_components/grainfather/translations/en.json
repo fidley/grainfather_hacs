@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Grainfather",
+        "description": "Enter your Grainfather account credentials.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Authentication failed.",
+      "cannot_connect": "Unable to connect to Grainfather."
+    },
+    "abort": {
+      "already_configured": "This Grainfather account is already configured."
+    }
+  },
+  "entity": {
+    "button": {
+      "set_status_planning": {
+        "name": "Set status to planning"
+      },
+      "set_status_brewing": {
+        "name": "Set status to brewing"
+      },
+      "set_status_fermenting": {
+        "name": "Set status to fermenting"
+      },
+      "set_status_conditioning": {
+        "name": "Set status to conditioning"
+      },
+      "set_status_completed": {
+        "name": "Set status to completed"
+      }
+    },
+    "select": {
+      "batch_status_select": {
+        "name": "Batch status"
+      }
+    },
+    "sensor": {
+      "account_email": {
+        "name": "Account email"
+      },
+      "session_name": {
+        "name": "Session name"
+      },
+      "recipe_name": {
+        "name": "Recipe name"
+      },
+      "batch_status": {
+        "name": "Batch status"
+      },
+      "batch_number": {
+        "name": "Batch number"
+      },
+      "batch_variant": {
+        "name": "Batch variant"
+      },
+      "original_gravity": {
+        "name": "Original gravity"
+      },
+      "final_gravity": {
+        "name": "Final gravity"
+      },
+      "fermentation_device_count": {
+        "name": "Fermentation device count"
+      },
+      "equipment_name": {
+        "name": "Equipment"
+      }
+    }
+  }
+}

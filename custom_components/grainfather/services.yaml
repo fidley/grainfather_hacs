@@ -1,0 +1,50 @@
+set_brew_session_status:
+  name: Set brew session status
+  description: Update the status code of a Grainfather brew session.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry to target when multiple Grainfather accounts are configured.
+      example: abc123def456
+    brew_session_id:
+      name: Brew session ID
+      description: Optional brew session ID. Defaults to the active session.
+      example: 1378631
+    recipe_id:
+      name: Recipe ID
+      description: Recipe ID for the targeted brew session. Required if you target a non-active session.
+      example: 1275839
+    status:
+      name: Status
+      description: Numeric Grainfather status code or mapped name (brewing, fermenting, conditioning, completed).
+      required: true
+      example: fermenting
+
+set_fermentation_steps:
+  name: Set fermentation steps
+  description: Replace the fermentation step list for a Grainfather brew session.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry to target when multiple Grainfather accounts are configured.
+      example: abc123def456
+    brew_session_id:
+      name: Brew session ID
+      description: Optional brew session ID. Defaults to the active session.
+      example: 1378631
+    recipe_id:
+      name: Recipe ID
+      description: Recipe ID for the targeted brew session. Required if you target a non-active session.
+      example: 1275839
+    fermentation_steps:
+      name: Fermentation steps
+      description: Full replacement list of Grainfather fermentation step objects.
+      required: true
+      example:
+        - name: Primary fermentation
+          temperature: 20
+          time: 5760
+          order: 0
+          time_unit_id: 30
+          is_ramp_step: false
+          finish_temperature: null

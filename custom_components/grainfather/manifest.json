@@ -1,0 +1,10 @@
+{
+  "domain": "grainfather",
+  "name": "Grainfather",
+  "codeowners": [],
+  "config_flow": true,
+  "iot_class": "cloud_polling",
+  "loggers": ["custom_components.grainfather"],
+  "requirements": [],
+  "version": "0.1.0"
+}
