@@ -1,72 +1,114 @@
 # Grainfather Dashboard — paste into Lovelace raw YAML editor
 # Requires HACS card: auto-entities  (https://github.com/thomasloven/lovelace-auto-entities)
-# Requires HACS card: mushroom       (optional, for compact session tiles)
+#
+# auto-entities filters by integration domain so entity_id naming doesn't matter.
 
 title: Brewing
 
 views:
+  # ════════════════════════════════════════════════════════════════════
   - title: Brew Sessions
     icon: mdi:beer
     cards:
-      # ── Brew Sessions table ────────────────────────────────────────────
+      # ── Status dropdown for every session ─────────────────────────
       - type: custom:auto-entities
         card:
           type: entities
-          title: Brew Sessions
+          title: Brew Sessions — Status
           show_header_toggle: false
         filter:
           include:
-            - entity_id: "select.grainfather_*_status_select"
+            - integration: grainfather
+              entity_id: "select.*"
               options:
                 secondary_info: last-changed
         sort:
           method: last_changed
           reverse: true
 
-      # ── Per-session detail cards (one card auto-generated per session) ─
-      - type: custom:auto-entities
-        card:
-          type: vertical-stack
-        filter:
-          include:
-            - entity_id: "sensor.grainfather_*_abv"
-        card_param: cards
-        card_options:
-          type: entities
-          title: "{{ state_attr(config.entity, 'session_name') or config.entity }}"
-          entities:
-            - entity: "{{ 'select.' + config.entity.split('.')[1].replace('_abv', '_status_select') }}"
-              name: Status
-            - entity: "{{ config.entity }}"
-              name: ABV
-            - entity: "{{ 'sensor.' + config.entity.split('.')[1].replace('_abv', '_style') }}"
-              name: Style
-            - entity: "{{ 'sensor.' + config.entity.split('.')[1].replace('_abv', '_original_gravity') }}"
-              name: OG
-            - entity: "{{ 'sensor.' + config.entity.split('.')[1].replace('_abv', '_final_gravity') }}"
-              name: FG
-
-  - title: Active Fermentations
-    icon: mdi:thermometer
-    cards:
-      # ── Fermentation device readings ───────────────────────────────────
+      # ── ABV for every session ──────────────────────────────────────
       - type: custom:auto-entities
         card:
           type: entities
-          title: Fermentation Devices
+          title: Brew Sessions — ABV
           show_header_toggle: false
         filter:
           include:
-            - entity_id: "sensor.grainfather_fermdevice_*_temperature"
-              options:
-                secondary_info: "{{ state_attr(config.entity, 'linked_brew_session_name') }}"
-            - entity_id: "sensor.grainfather_fermdevice_*_gravity"
+            - integration: grainfather
+              entity_id: "sensor.*_abv"
               options:
                 secondary_info: last-changed
         sort:
           method: name
 
-      # ── Temperature history graph (all devices) ────────────────────────
+      # ── Style for every session ────────────────────────────────────
+      - type: custom:auto-entities
+        card:
+          type: entities
+          title: Brew Sessions — Style
+          show_header_toggle: false
+        filter:
+          include:
+            - integration: grainfather
+              entity_id: "sensor.*_style"
+              options:
+                secondary_info: last-changed
+        sort:
+          method: name
+
+      # ── Gravities (OG / FG) for every session ─────────────────────
+      - type: custom:auto-entities
+        card:
+          type: entities
+          title: Brew Sessions — Gravities
+          show_header_toggle: false
+        filter:
+          include:
+            - integration: grainfather
+              entity_id: "sensor.*_original_gravity"
+              options:
+                secondary_info: last-changed
+            - integration: grainfather
+              entity_id: "sensor.*_final_gravity"
+              options:
+                secondary_info: last-changed
+        sort:
+          method: name
+
+  # ════════════════════════════════════════════════════════════════════
+  - title: Active Fermentations
+    icon: mdi:thermometer
+    cards:
+      # ── Live device readings ───────────────────────────────────────
+      - type: custom:auto-entities
+        card:
+          type: entities
+          title: Fermentation Devices — Temperature
+          show_header_toggle: false
+        filter:
+          include:
+            - integration: grainfather
+              entity_id: "sensor.*_temperature"
+              options:
+                secondary_info: last-changed
+        sort:
+          method: name
+
+      - type: custom:auto-entities
+        card:
+          type: entities
+          title: Fermentation Devices — Gravity
+          show_header_toggle: false
+        filter:
+          include:
+            - integration: grainfather
+              entity_id: "sensor.*_gravity"
+              options:
+                secondary_info: last-changed
+        sort:
+          method: name
+
+      # ── Temperature history (7 days) ───────────────────────────────
       - type: custom:auto-entities
         card:
           type: history-graph
@@ -74,9 +116,10 @@ views:
           hours_to_show: 168
         filter:
           include:
-            - entity_id: "sensor.grainfather_fermdevice_*_temperature"
+            - integration: grainfather
+              entity_id: "sensor.*_temperature"
 
-      # ── Gravity history graph (all devices) ───────────────────────────
+      # ── Gravity history (7 days) ───────────────────────────────────
       - type: custom:auto-entities
         card:
           type: history-graph
@@ -84,9 +127,10 @@ views:
           hours_to_show: 168
         filter:
           include:
-            - entity_id: "sensor.grainfather_fermdevice_*_gravity"
+            - integration: grainfather
+              entity_id: "sensor.*_gravity"
 
-      # ── Fermentation step duration sliders ────────────────────────────
+      # ── Fermentation step duration sliders ────────────────────────
       - type: custom:auto-entities
         card:
           type: entities
@@ -94,7 +138,8 @@ views:
           show_header_toggle: false
         filter:
           include:
-            - entity_id: "number.grainfather_*_step_*_duration"
+            - integration: grainfather
+              domain: number
               options:
                 secondary_info: last-changed
         sort:

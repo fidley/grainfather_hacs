@@ -36,7 +36,13 @@ class GrainfatherDataUpdateCoordinator(DataUpdateCoordinator[GrainfatherSnapshot
 
     async def _async_update_data(self) -> GrainfatherSnapshot:
         try:
-            return await self.api.async_get_snapshot()
+            snapshot = await self.api.async_get_snapshot()
+            LOGGER.debug(
+                "Refreshed Grainfather snapshot: %s sessions, %s fermentation devices",
+                len(snapshot.brew_sessions),
+                len(snapshot.fermentation_devices),
+            )
+            return snapshot
         except GrainfatherAuthenticationError as err:
             raise UpdateFailed(f"Authentication failed: {err}") from err
         except GrainfatherApiError as err:

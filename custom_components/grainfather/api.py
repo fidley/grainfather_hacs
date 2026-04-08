@@ -240,7 +240,15 @@ class GrainfatherApiClient:
         if self._access_token is None:
             await self.authenticate()
 
-        headers = {"Authorization": f"Bearer {self._access_token}"}
+        headers = {
+            "Authorization": f"Bearer {self._access_token}",
+            "Cache-Control": "no-cache, no-store, max-age=0",
+            "Pragma": "no-cache",
+        }
+        params: dict[str, Any] | None = None
+        if method.upper() == "GET":
+            # Add a cache-buster to reduce stale responses from intermediate proxies/CDNs.
+            params = {"_ts": int(datetime.now(timezone.utc).timestamp())}
 
         try:
             async with self._session.request(
@@ -248,6 +256,7 @@ class GrainfatherApiClient:
                 f"{self._base_url}{path}",
                 headers=headers,
                 json=json_payload,
+                params=params,
             ) as response:
                 if response.status in (401, 403) and retry_on_auth_error:
                     self._access_token = None

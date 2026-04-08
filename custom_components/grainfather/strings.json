@@ -40,7 +40,8 @@
           "brewing": "Brewing",
           "fermenting": "Fermenting",
           "conditioning": "Conditioning",
-          "completed": "Completed"
+          "completed": "Completed",
+          "serving": "Serving"
         }
       }
     },

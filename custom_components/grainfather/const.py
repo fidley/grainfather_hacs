@@ -24,14 +24,11 @@ SERVICE_SET_FERMENTATION_STEP_DURATION = "set_fermentation_step_duration"
 
 BREW_SESSION_STATUS_MAP = {
 	"planning": 0,
-	"planned": 0,
 	"brewing": 10,
 	"fermenting": 20,
-	"fermentation": 20,
 	"conditioning": 30,
-	"conditioned": 30,
-	"completed": 40,
-	"packaged": 40,
+	"serving": 40,
+	"completed": 50
 }
 
 BREW_SESSION_STATUS_NAME_BY_CODE = {
@@ -39,7 +36,8 @@ BREW_SESSION_STATUS_NAME_BY_CODE = {
 	10: "brewing",
 	20: "fermenting",
 	30: "conditioning",
-	40: "completed",
+    40: "serving",
+	50: "completed",
 }
 
 
