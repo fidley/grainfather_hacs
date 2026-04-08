@@ -9,7 +9,12 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import GrainfatherBrewSession
+from .api import (
+    GrainfatherBrewSession,
+    brew_session_device_identifier,
+    brew_session_display_name,
+    brew_session_unique_fragment,
+)
 from .const import (
     BREW_SESSION_STATUS_NAME_BY_CODE,
     DOMAIN,
@@ -27,7 +32,12 @@ async def async_setup_entry(
 ) -> None:
     coordinator: GrainfatherDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities(
-        GrainfatherSessionStatusSelect(coordinator, entry, session.batch_id)
+        GrainfatherSessionStatusSelect(
+            coordinator,
+            entry,
+            session.batch_id,
+            brew_session_unique_fragment(session),
+        )
         for session in coordinator.data.brew_sessions
     )
 
@@ -44,11 +54,14 @@ class GrainfatherSessionStatusSelect(
         coordinator: GrainfatherDataUpdateCoordinator,
         entry: ConfigEntry,
         batch_id: int | str | None,
+        session_unique_fragment: str,
     ) -> None:
         super().__init__(coordinator)
         self._batch_id = batch_id
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{entry.entry_id}_session_{batch_id}_status_select"
+        self._attr_unique_id = (
+            f"{entry.entry_id}_session_{session_unique_fragment}_status_select"
+        )
 
     @property
     def _session(self) -> GrainfatherBrewSession | None:
@@ -67,8 +80,8 @@ class GrainfatherSessionStatusSelect(
         if session is None:
             return None
         return DeviceInfo(
-            identifiers={(DOMAIN, f"session_{session.batch_id}")},
-            name=session.session_name or session.recipe_name or f"Batch {session.batch_id}",
+            identifiers={(DOMAIN, brew_session_device_identifier(session))},
+            name=brew_session_display_name(session),
             manufacturer="Grainfather",
             model=session.style_name,
             entry_type=DeviceEntryType.SERVICE,

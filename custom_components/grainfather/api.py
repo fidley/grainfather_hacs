@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from aiohttp import ClientResponseError, ClientSession
 
@@ -127,8 +128,7 @@ class GrainfatherApiClient:
         return True
 
     async def async_get_snapshot(self) -> GrainfatherSnapshot:
-        sessions_payload = await self._request_json("GET", "/2/brew-sessions")
-        sessions_list = sessions_payload.get("data") or []
+        sessions_list = await self.async_get_brew_sessions()
 
         brew_sessions: list[GrainfatherBrewSession] = []
         for session_item in sessions_list:
@@ -160,6 +160,27 @@ class GrainfatherApiClient:
             brew_sessions=tuple(brew_sessions),
             fermentation_devices=fermentation_devices,
         )
+
+    async def async_get_brew_sessions(self) -> list[dict[str, Any]]:
+        sessions: list[dict[str, Any]] = []
+        current_page = 1
+        seen_pages: set[int] = set()
+
+        while current_page not in seen_pages:
+            seen_pages.add(current_page)
+            payload = await self._request_json(
+                "GET",
+                "/2/brew-sessions",
+                query_params={"deleted": 1, "page": current_page},
+            )
+            sessions.extend(payload.get("data") or [])
+
+            next_page = _extract_next_page(payload)
+            if next_page is None:
+                break
+            current_page = next_page
+
+        return sessions
 
     async def async_get_brew_session_detail(
         self,
@@ -235,6 +256,7 @@ class GrainfatherApiClient:
         path: str,
         *,
         json_payload: dict[str, Any] | None = None,
+        query_params: dict[str, Any] | None = None,
         retry_on_auth_error: bool = True,
     ) -> Any:
         if self._access_token is None:
@@ -248,7 +270,10 @@ class GrainfatherApiClient:
         params: dict[str, Any] | None = None
         if method.upper() == "GET":
             # Add a cache-buster to reduce stale responses from intermediate proxies/CDNs.
-            params = {"_ts": int(datetime.now(timezone.utc).timestamp())}
+            params = {
+                "_ts": int(datetime.now(timezone.utc).timestamp()),
+                **(query_params or {}),
+            }
 
         try:
             async with self._session.request(
@@ -265,6 +290,7 @@ class GrainfatherApiClient:
                         method,
                         path,
                         json_payload=json_payload,
+                        query_params=query_params,
                         retry_on_auth_error=False,
                     )
 
@@ -320,6 +346,41 @@ def parse_batch_payload(payload: dict[str, Any] | None) -> GrainfatherBrewSessio
         equipment_profile=equipment_profile,
         raw_payload=deepcopy(payload),
     )
+
+
+def brew_session_device_identifier(session: GrainfatherBrewSession) -> str:
+    return f"batch_{brew_session_unique_fragment(session)}"
+
+
+def brew_session_unique_fragment(session: GrainfatherBrewSession) -> str:
+    parts: list[str] = []
+
+    batch_id = session.batch_id
+    if batch_id is not None:
+        parts.append(f"id_{batch_id}")
+
+    if session.batch_number is not None:
+        parts.append(f"no_{session.batch_number}")
+
+    return "_".join(parts) or "unknown"
+
+
+def brew_session_display_name(session: GrainfatherBrewSession) -> str:
+    base_name = session.session_name or session.recipe_name
+    batch_reference = _brew_session_reference(session)
+
+    if not base_name:
+        return batch_reference
+
+    if session.batch_number is not None and f"#{session.batch_number}" in base_name:
+        if session.batch_id is not None:
+            return f"{base_name} (ID {session.batch_id})"
+        return base_name
+
+    if batch_reference == "Batch":
+        return base_name
+
+    return f"{base_name} ({batch_reference})"
 
 
 def parse_fermentation_steps_payload(payload: list[dict[str, Any]]) -> tuple[GrainfatherFermentationStep, ...]:
@@ -428,6 +489,42 @@ def _select_active_brew_session(payload: dict[str, Any]) -> dict[str, Any] | Non
         reverse=True,
     )
     return candidates[0]
+
+
+def _brew_session_reference(session: GrainfatherBrewSession) -> str:
+    if session.batch_number is not None and session.batch_id is not None:
+        return f"Batch #{session.batch_number}, ID {session.batch_id}"
+    if session.batch_number is not None:
+        return f"Batch #{session.batch_number}"
+    if session.batch_id is not None:
+        return f"Batch ID {session.batch_id}"
+    return "Batch"
+
+
+def _extract_next_page(payload: dict[str, Any]) -> int | None:
+    next_page = _first_value(payload, "next_page", "nextPage")
+    parsed_page = _page_number_from_value(next_page)
+    if parsed_page is not None:
+        return parsed_page
+
+    next_page_url = _first_value(payload, "next_page_url", "nextPageUrl")
+    return _page_number_from_value(next_page_url)
+
+
+def _page_number_from_value(value: Any) -> int | None:
+    parsed_value = _to_int(value)
+    if parsed_value is not None:
+        return parsed_value
+
+    if not isinstance(value, str) or not value:
+        return None
+
+    parsed_url = urlparse(value)
+    page_values = parse_qs(parsed_url.query).get("page")
+    if not page_values:
+        return None
+
+    return _to_int(page_values[0])
 
 
 def _first_value(payload: dict[str, Any], *keys: str) -> Any:

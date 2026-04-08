@@ -27,8 +27,8 @@ BREW_SESSION_STATUS_MAP = {
 	"brewing": 10,
 	"fermenting": 20,
 	"conditioning": 30,
-	"serving": 40,
-	"completed": 50
+	"serving": 35,
+	"completed": 40
 }
 
 BREW_SESSION_STATUS_NAME_BY_CODE = {
@@ -36,8 +36,8 @@ BREW_SESSION_STATUS_NAME_BY_CODE = {
 	10: "brewing",
 	20: "fermenting",
 	30: "conditioning",
-    40: "serving",
-	50: "completed",
+    35: "serving",
+	40: "completed",
 }
 
 

@@ -10,7 +10,12 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import GrainfatherBrewSession
+from .api import (
+    GrainfatherBrewSession,
+    brew_session_device_identifier,
+    brew_session_display_name,
+    brew_session_unique_fragment,
+)
 from .const import DOMAIN
 from .coordinator import GrainfatherDataUpdateCoordinator
 
@@ -32,6 +37,7 @@ async def async_setup_entry(
                     coordinator,
                     entry,
                     session.batch_id,
+                    brew_session_unique_fragment(session),
                     step_index,
                 )
             )
@@ -54,6 +60,7 @@ class GrainfatherFermentationStepDurationNumber(
         coordinator: GrainfatherDataUpdateCoordinator,
         entry: ConfigEntry,
         batch_id: int | str | None,
+        session_unique_fragment: str,
         step_index: int,
     ) -> None:
         super().__init__(coordinator)
@@ -61,7 +68,7 @@ class GrainfatherFermentationStepDurationNumber(
         self._step_index = step_index
         self._attr_has_entity_name = True
         self._attr_unique_id = (
-            f"{entry.entry_id}_session_{batch_id}_step_{step_index}_duration"
+            f"{entry.entry_id}_session_{session_unique_fragment}_step_{step_index}_duration"
         )
 
     @property
@@ -93,8 +100,8 @@ class GrainfatherFermentationStepDurationNumber(
         if session is None:
             return None
         return DeviceInfo(
-            identifiers={(DOMAIN, f"session_{session.batch_id}")},
-            name=session.session_name or session.recipe_name or f"Batch {session.batch_id}",
+            identifiers={(DOMAIN, brew_session_device_identifier(session))},
+            name=brew_session_display_name(session),
             manufacturer="Grainfather",
             model=session.style_name,
             entry_type=DeviceEntryType.SERVICE,

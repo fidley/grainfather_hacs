@@ -13,7 +13,14 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import GrainfatherBrewSession, GrainfatherFermentationDevice, GrainfatherSnapshot
+from .api import (
+    GrainfatherBrewSession,
+    GrainfatherFermentationDevice,
+    GrainfatherSnapshot,
+    brew_session_device_identifier,
+    brew_session_display_name,
+    brew_session_unique_fragment,
+)
 from .const import DOMAIN, brew_session_status_name
 from .coordinator import GrainfatherDataUpdateCoordinator
 
@@ -89,8 +96,8 @@ SESSION_SENSORS: tuple[GrainfatherSessionSensorDescription, ...] = (
 
 def _session_device_info(session: GrainfatherBrewSession) -> DeviceInfo:
     return DeviceInfo(
-        identifiers={(DOMAIN, f"session_{session.batch_id}")},
-        name=session.session_name or session.recipe_name or f"Batch {session.batch_id}",
+        identifiers={(DOMAIN, brew_session_device_identifier(session))},
+        name=brew_session_display_name(session),
         manufacturer="Grainfather",
         model=session.style_name,
         entry_type=DeviceEntryType.SERVICE,
@@ -107,8 +114,17 @@ def _ferm_device_info(
         "manufacturer": "Grainfather",
         "entry_type": DeviceEntryType.SERVICE,
     }
-    if device.linked_brew_session_id is not None:
-        kwargs["via_device"] = (DOMAIN, f"session_{device.linked_brew_session_id}")
+    linked_session = next(
+        (
+            session
+            for session in snapshot.brew_sessions
+            if device.linked_brew_session_id is not None
+            and str(session.batch_id) == str(device.linked_brew_session_id)
+        ),
+        None,
+    )
+    if linked_session is not None:
+        kwargs["via_device"] = (DOMAIN, brew_session_device_identifier(linked_session))
     return DeviceInfo(**kwargs)
 
 
@@ -122,7 +138,13 @@ async def async_setup_entry(
 
     for session in coordinator.data.brew_sessions:
         entities.extend(
-            GrainfatherSessionSensor(coordinator, entry, session.batch_id, description)
+            GrainfatherSessionSensor(
+                coordinator,
+                entry,
+                session.batch_id,
+                brew_session_unique_fragment(session),
+                description,
+            )
             for description in SESSION_SENSORS
         )
 
@@ -144,13 +166,16 @@ class GrainfatherSessionSensor(
         coordinator: GrainfatherDataUpdateCoordinator,
         entry: ConfigEntry,
         batch_id: int | str | None,
+        session_unique_fragment: str,
         description: GrainfatherSessionSensorDescription,
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
         self._batch_id = batch_id
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{entry.entry_id}_session_{batch_id}_{description.key}"
+        self._attr_unique_id = (
+            f"{entry.entry_id}_session_{session_unique_fragment}_{description.key}"
+        )
 
     @property
     def _session(self) -> GrainfatherBrewSession | None:

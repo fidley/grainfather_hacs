@@ -1,6 +1,12 @@
+import asyncio
+
 from custom_components.grainfather.api import (
+    GrainfatherApiClient,
     _select_active_brew_session,
     build_brew_session_update_payload,
+    brew_session_device_identifier,
+    brew_session_display_name,
+    brew_session_unique_fragment,
     parse_account_payload,
     parse_batch_payload,
     parse_fermentation_devices_payload,
@@ -150,3 +156,65 @@ def test_normalize_brew_session_status() -> None:
     assert normalize_brew_session_status("Fermenting") == 20
     assert brew_session_status_name(0) == "planning"
     assert brew_session_status_name(30) == "conditioning"
+
+
+def test_brew_session_identity_helpers_include_batch_id_and_number() -> None:
+    session = parse_batch_payload(
+        {
+            "id": 1378631,
+            "session_name": "Orange IPA #271",
+            "batch_number": 271,
+        }
+    )
+
+    assert session is not None
+    assert brew_session_unique_fragment(session) == "id_1378631_no_271"
+    assert brew_session_device_identifier(session) == "batch_id_1378631_no_271"
+    assert brew_session_display_name(session) == "Orange IPA #271 (ID 1378631)"
+
+
+def test_async_get_brew_sessions_follows_pagination_and_sets_deleted_flag() -> None:
+    class FakeGrainfatherApiClient(GrainfatherApiClient):
+        def __init__(self) -> None:
+            self._session = None
+            self._email = ""
+            self._password = ""
+            self._base_url = "https://community.grainfather.com/api"
+            self._access_token = "token"
+            self._account = None
+            self.calls: list[dict[str, int]] = []
+
+        async def _request_json(
+            self,
+            method: str,
+            path: str,
+            *,
+            json_payload=None,
+            query_params=None,
+            retry_on_auth_error: bool = True,
+        ):
+            del method, path, json_payload, retry_on_auth_error
+            assert query_params is not None
+            self.calls.append(query_params)
+
+            page = query_params["page"]
+            if page == 1:
+                return {
+                    "data": [{"id": 1}, {"id": 2}],
+                    "next_page_url": "https://community.grainfather.com/api/2/brew-sessions?page=2",
+                }
+
+            return {
+                "data": [{"id": 3}],
+                "next_page_url": None,
+            }
+
+    client = FakeGrainfatherApiClient()
+
+    sessions = asyncio.run(client.async_get_brew_sessions())
+
+    assert sessions == [{"id": 1}, {"id": 2}, {"id": 3}]
+    assert client.calls == [
+        {"deleted": 1, "page": 1},
+        {"deleted": 1, "page": 2},
+    ]
