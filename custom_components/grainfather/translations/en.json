@@ -18,60 +18,58 @@
       "already_configured": "This Grainfather account is already configured."
     }
   },
-  "entity": {
-    "button": {
-      "set_status_planning": {
-        "name": "Set status to planning"
-      },
-      "set_status_brewing": {
-        "name": "Set status to brewing"
-      },
-      "set_status_fermenting": {
-        "name": "Set status to fermenting"
-      },
-      "set_status_conditioning": {
-        "name": "Set status to conditioning"
-      },
-      "set_status_completed": {
-        "name": "Set status to completed"
+  "options": {
+    "step": {
+      "init": {
+        "title": "Grainfather options",
+        "data": {
+          "scan_interval": "Update interval (seconds)"
+        },
+        "data_description": {
+          "scan_interval": "How often (in seconds) to poll the Grainfather cloud API. Minimum 60 s, maximum 3600 s."
+        }
       }
-    },
+    }
+  },
+  "entity": {
     "select": {
-      "batch_status_select": {
-        "name": "Batch status"
+      "session_status": {
+        "name": "Status",
+        "state": {
+          "planning": "Planning",
+          "brewing": "Brewing",
+          "fermenting": "Fermenting",
+          "conditioning": "Conditioning",
+          "completed": "Completed"
+        }
       }
     },
     "sensor": {
-      "account_email": {
-        "name": "Account email"
+      "session_status": {
+        "name": "Status"
       },
-      "session_name": {
-        "name": "Session name"
+      "session_abv": {
+        "name": "ABV"
       },
-      "recipe_name": {
-        "name": "Recipe name"
+      "session_style": {
+        "name": "Style"
       },
-      "batch_status": {
-        "name": "Batch status"
+      "session_original_gravity": {
+        "name": "Original Gravity"
       },
-      "batch_number": {
-        "name": "Batch number"
+      "session_final_gravity": {
+        "name": "Final Gravity"
       },
-      "batch_variant": {
-        "name": "Batch variant"
+      "session_batch_number": {
+        "name": "Batch Number"
       },
-      "original_gravity": {
-        "name": "Original gravity"
+      "fermdevice_temperature": {
+        "name": "Temperature"
       },
-      "final_gravity": {
-        "name": "Final gravity"
-      },
-      "fermentation_device_count": {
-        "name": "Fermentation device count"
-      },
-      "equipment_name": {
-        "name": "Equipment"
+      "fermdevice_gravity": {
+        "name": "Gravity"
       }
     }
   }
 }
+

@@ -30,6 +30,7 @@ class GrainfatherBrewSession:
     recipe_id: int | None
     session_name: str | None
     recipe_name: str | None
+    style_name: str | None
     batch_variant_name: str | None
     status: int | None
     batch_number: int | None
@@ -84,9 +85,8 @@ class GrainfatherFermentationDevice:
 @dataclass(slots=True)
 class GrainfatherSnapshot:
     account: GrainfatherAccount
-    active_batch: GrainfatherBrewSession | None
+    brew_sessions: tuple[GrainfatherBrewSession, ...]
     fermentation_devices: tuple[GrainfatherFermentationDevice, ...]
-    equipment_profiles: tuple[GrainfatherEquipmentProfile, ...]
 
 
 class GrainfatherApiClient:
@@ -128,32 +128,37 @@ class GrainfatherApiClient:
 
     async def async_get_snapshot(self) -> GrainfatherSnapshot:
         sessions_payload = await self._request_json("GET", "/2/brew-sessions")
-        active_session_payload = _select_active_brew_session(sessions_payload)
+        sessions_list = sessions_payload.get("data") or []
 
-        active_batch = None
-        if active_session_payload:
-            recipe_id = _to_int(_first_value(active_session_payload, "recipe_id")) or _to_int(
-                _first_value(active_session_payload.get("recipe") or {}, "id")
+        brew_sessions: list[GrainfatherBrewSession] = []
+        for session_item in sessions_list:
+            recipe_id = _to_int(_first_value(session_item, "recipe_id")) or _to_int(
+                _first_value(session_item.get("recipe") or {}, "id")
             )
-            batch_id = _to_int(_first_value(active_session_payload, "id", "batchId"))
-            if recipe_id is not None and batch_id is not None:
-                detail_payload = await self.async_get_brew_session_detail(recipe_id, batch_id)
-                active_batch = parse_batch_payload(detail_payload)
+            batch_id = _to_int(_first_value(session_item, "id", "batchId"))
+            status = _to_int(_first_value(session_item, "status", "state"))
+
+            # Fetch full detail for fermenting sessions to include fermentation steps
+            if status == 20 and recipe_id is not None and batch_id is not None:
+                try:
+                    detail_payload = await self.async_get_brew_session_detail(recipe_id, batch_id)
+                    batch = parse_batch_payload(detail_payload)
+                except GrainfatherApiError:
+                    batch = parse_batch_payload(session_item)
             else:
-                active_batch = parse_batch_payload(active_session_payload)
+                batch = parse_batch_payload(session_item)
+
+            if batch is not None:
+                brew_sessions.append(batch)
 
         fermentation_devices = parse_fermentation_devices_payload(
             await self._request_json("GET", "/equipment/fermentation-devices")
         )
-        equipment_profiles = parse_equipment_profiles_payload(
-            await self._request_json("GET", "/system-equipment-profiles")
-        )
 
         return GrainfatherSnapshot(
             account=self._account or GrainfatherAccount(None, self._email, None, None),
-            active_batch=active_batch,
+            brew_sessions=tuple(brew_sessions),
             fermentation_devices=fermentation_devices,
-            equipment_profiles=equipment_profiles,
         )
 
     async def async_get_brew_session_detail(
@@ -191,6 +196,31 @@ class GrainfatherApiClient:
         updated_payload = build_brew_session_update_payload(
             detail_payload,
             fermentation_steps=fermentation_steps,
+        )
+        result = await self._request_json(
+            "PUT",
+            f"/recipes/{recipe_id}/brew-sessions/{brew_session_id}",
+            json_payload=updated_payload,
+        )
+        return parse_batch_payload(result)
+
+    async def async_set_fermentation_step_duration(
+        self,
+        recipe_id: int,
+        brew_session_id: int,
+        step_index: int,
+        duration_minutes: int,
+    ) -> GrainfatherBrewSession | None:
+        detail_payload = await self.async_get_brew_session_detail(recipe_id, brew_session_id)
+        steps = list(detail_payload.get("fermentation_steps") or [])
+        if step_index >= len(steps):
+            raise GrainfatherApiError(
+                f"Step index {step_index} out of range (session has {len(steps)} steps)"
+            )
+        updated_steps = [dict(step) for step in steps]
+        updated_steps[step_index]["time"] = duration_minutes
+        updated_payload = build_brew_session_update_payload(
+            detail_payload, fermentation_steps=updated_steps
         )
         result = await self._request_json(
             "PUT",
@@ -265,6 +295,10 @@ def parse_batch_payload(payload: dict[str, Any] | None) -> GrainfatherBrewSessio
         recipe_id=_to_int(_first_value(payload, "recipe_id")) or _to_int(_first_value(recipe_payload, "id")),
         session_name=_first_value(payload, "session_name", "sessionName"),
         recipe_name=_first_value(recipe_payload, "name") or _first_value(payload, "name"),
+        style_name=(
+            _first_value(recipe_payload, "style_name")
+            or _first_value(recipe_payload.get("style") or {}, "name")
+        ),
         batch_variant_name=_first_value(payload, "batch_variant_name", "batchVariantName"),
         status=_to_int(_first_value(payload, "status", "state")),
         batch_number=_to_int(_first_value(payload, "batch_number", "batchNumber")),

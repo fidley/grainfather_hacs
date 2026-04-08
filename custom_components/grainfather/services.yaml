@@ -48,3 +48,30 @@ set_fermentation_steps:
           time_unit_id: 30
           is_ramp_step: false
           finish_temperature: null
+
+set_fermentation_step_duration:
+  name: Set fermentation step duration
+  description: Update the duration of a single fermentation step in a brew session.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID when multiple Grainfather accounts are configured.
+      example: abc123def456
+    brew_session_id:
+      name: Brew session ID
+      description: Optional brew session ID. Defaults to the first fermenting session.
+      example: 1378631
+    recipe_id:
+      name: Recipe ID
+      description: Recipe ID for the targeted brew session.
+      example: 1275839
+    step_index:
+      name: Step index
+      description: Zero-based index of the fermentation step to modify.
+      required: true
+      example: 0
+    duration_minutes:
+      name: Duration (minutes)
+      description: New duration for the step in minutes.
+      required: true
+      example: 8640

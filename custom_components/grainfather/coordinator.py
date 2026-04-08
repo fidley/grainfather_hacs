@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -12,18 +13,24 @@ from .api import (
     GrainfatherAuthenticationError,
     GrainfatherSnapshot,
 )
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
 
 LOGGER = logging.getLogger(__name__)
 
 
 class GrainfatherDataUpdateCoordinator(DataUpdateCoordinator[GrainfatherSnapshot]):
-    def __init__(self, hass: HomeAssistant, api: GrainfatherApiClient) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        api: GrainfatherApiClient,
+        entry: ConfigEntry,
+    ) -> None:
+        interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         super().__init__(
             hass,
             logger=LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
+            update_interval=timedelta(seconds=interval),
         )
         self.api = api
 

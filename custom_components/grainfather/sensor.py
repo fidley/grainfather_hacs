@@ -6,98 +6,110 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import PERCENTAGE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntryType
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import (
-    GrainfatherEquipmentProfile,
-    GrainfatherFermentationDevice,
-    GrainfatherSnapshot,
-)
+from .api import GrainfatherBrewSession, GrainfatherFermentationDevice, GrainfatherSnapshot
 from .const import DOMAIN, brew_session_status_name
 from .coordinator import GrainfatherDataUpdateCoordinator
 
 
 @dataclass(frozen=True, kw_only=True)
-class GrainfatherSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[GrainfatherSnapshot], Any]
-    attributes_fn: Callable[[GrainfatherSnapshot], dict[str, Any] | None] | None = None
+class GrainfatherSessionSensorDescription(SensorEntityDescription):
+    value_fn: Callable[[GrainfatherBrewSession], Any]
+    attributes_fn: Callable[[GrainfatherBrewSession, GrainfatherSnapshot], dict[str, Any] | None] | None = None
 
 
-SENSORS: tuple[GrainfatherSensorDescription, ...] = (
-    GrainfatherSensorDescription(
-        key="account_email",
-        translation_key="account_email",
-        value_fn=lambda snapshot: snapshot.account.email,
+def _calc_abv(og: float | None, fg: float | None) -> float | None:
+    if og is None or fg is None:
+        return None
+    return round((og - fg) * 131.25, 2)
+
+
+SESSION_SENSORS: tuple[GrainfatherSessionSensorDescription, ...] = (
+    GrainfatherSessionSensorDescription(
+        key="status",
+        translation_key="session_status",
+        value_fn=lambda s: brew_session_status_name(s.status),
     ),
-    GrainfatherSensorDescription(
-        key="session_name",
-        translation_key="session_name",
-        value_fn=lambda snapshot: snapshot.active_batch.session_name if snapshot.active_batch else None,
-        attributes_fn=lambda snapshot: _active_batch_attributes(snapshot),
+    GrainfatherSessionSensorDescription(
+        key="abv",
+        translation_key="session_abv",
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=1,
+        value_fn=lambda s: _calc_abv(s.original_gravity, s.final_gravity),
     ),
-    GrainfatherSensorDescription(
-        key="recipe_name",
-        translation_key="recipe_name",
-        value_fn=lambda snapshot: snapshot.active_batch.recipe_name if snapshot.active_batch else None,
+    GrainfatherSessionSensorDescription(
+        key="style",
+        translation_key="session_style",
+        value_fn=lambda s: s.style_name,
     ),
-    GrainfatherSensorDescription(
-        key="batch_status",
-        translation_key="batch_status",
-        value_fn=lambda snapshot: snapshot.active_batch.status if snapshot.active_batch else None,
-        attributes_fn=lambda snapshot: {
-            "status_name": brew_session_status_name(snapshot.active_batch.status)
-            if snapshot.active_batch
-            else None
-        },
-    ),
-    GrainfatherSensorDescription(
-        key="batch_number",
-        translation_key="batch_number",
-        value_fn=lambda snapshot: snapshot.active_batch.batch_number if snapshot.active_batch else None,
-    ),
-    GrainfatherSensorDescription(
-        key="batch_variant",
-        translation_key="batch_variant",
-        value_fn=lambda snapshot: snapshot.active_batch.batch_variant_name if snapshot.active_batch else None,
-    ),
-    GrainfatherSensorDescription(
+    GrainfatherSessionSensorDescription(
         key="original_gravity",
-        translation_key="original_gravity",
-        suggested_display_precision=3,
-        value_fn=lambda snapshot: snapshot.active_batch.original_gravity if snapshot.active_batch else None,
+        translation_key="session_original_gravity",
+        suggested_display_precision=4,
+        value_fn=lambda s: s.original_gravity,
     ),
-    GrainfatherSensorDescription(
+    GrainfatherSessionSensorDescription(
         key="final_gravity",
-        translation_key="final_gravity",
-        suggested_display_precision=3,
-        value_fn=lambda snapshot: snapshot.active_batch.final_gravity if snapshot.active_batch else None,
+        translation_key="session_final_gravity",
+        suggested_display_precision=4,
+        value_fn=lambda s: s.final_gravity,
     ),
-    GrainfatherSensorDescription(
-        key="fermentation_device_count",
-        translation_key="fermentation_device_count",
-        value_fn=lambda snapshot: snapshot.active_batch.fermentation_device_count if snapshot.active_batch else 0,
-        attributes_fn=lambda snapshot: {
-            "fermentation_devices": [
+    GrainfatherSessionSensorDescription(
+        key="batch_number",
+        translation_key="session_batch_number",
+        value_fn=lambda s: s.batch_number,
+        attributes_fn=lambda s, snapshot: {
+            "brew_session_id": s.batch_id,
+            "recipe_id": s.recipe_id,
+            "session_name": s.session_name,
+            "recipe_name": s.recipe_name,
+            "batch_variant": s.batch_variant_name,
+            "equipment_name": s.equipment_name,
+            "fermentation_device_ids": list(s.fermentation_device_ids),
+            "fermentation_steps": [
                 {
-                    "id": device.device_id,
-                    "name": device.name,
-                    "linked_brew_session_id": device.linked_brew_session_id,
-                    "linked_brew_session_name": device.linked_brew_session_name,
+                    "index": i,
+                    "name": step.name,
+                    "temperature": step.temperature,
+                    "duration_minutes": step.duration,
+                    "is_ramp_step": step.is_ramp_step,
                 }
-                for device in snapshot.fermentation_devices
-            ]
+                for i, step in enumerate(s.fermentation_steps)
+            ],
         },
-    ),
-    GrainfatherSensorDescription(
-        key="equipment_name",
-        translation_key="equipment_name",
-        value_fn=lambda snapshot: snapshot.active_batch.equipment_name if snapshot.active_batch else None,
-        attributes_fn=lambda snapshot: _active_equipment_attributes(snapshot),
     ),
 )
+
+
+def _session_device_info(session: GrainfatherBrewSession) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"session_{session.batch_id}")},
+        name=session.session_name or session.recipe_name or f"Batch {session.batch_id}",
+        manufacturer="Grainfather",
+        model=session.style_name,
+        entry_type=DeviceEntryType.SERVICE,
+    )
+
+
+def _ferm_device_info(
+    device: GrainfatherFermentationDevice,
+    snapshot: GrainfatherSnapshot,
+) -> DeviceInfo:
+    kwargs: dict[str, Any] = {
+        "identifiers": {(DOMAIN, f"fermdevice_{device.device_id}")},
+        "name": device.name or f"Fermentation Device {device.device_id}",
+        "manufacturer": "Grainfather",
+        "entry_type": DeviceEntryType.SERVICE,
+    }
+    if device.linked_brew_session_id is not None:
+        kwargs["via_device"] = (DOMAIN, f"session_{device.linked_brew_session_id}")
+    return DeviceInfo(**kwargs)
 
 
 async def async_setup_entry(
@@ -106,101 +118,91 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: GrainfatherDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities: list[SensorEntity] = [
-        GrainfatherSensor(coordinator, entry, description) for description in SENSORS
-    ]
-    entities.extend(
-        GrainfatherFermentationDeviceMetricSensor(coordinator, entry, device, metric="temperature")
-        for device in coordinator.data.fermentation_devices
-    )
-    entities.extend(
-        GrainfatherFermentationDeviceMetricSensor(coordinator, entry, device, metric="gravity")
-        for device in coordinator.data.fermentation_devices
-    )
-    entities.extend(
-        GrainfatherEquipmentProfileSensor(coordinator, entry, profile)
-        for profile in coordinator.data.equipment_profiles
-    )
+    entities: list[SensorEntity] = []
+
+    for session in coordinator.data.brew_sessions:
+        entities.extend(
+            GrainfatherSessionSensor(coordinator, entry, session.batch_id, description)
+            for description in SESSION_SENSORS
+        )
+
+    for device in coordinator.data.fermentation_devices:
+        entities.append(GrainfatherFermDeviceTemperatureSensor(coordinator, entry, device.device_id))
+        entities.append(GrainfatherFermDeviceGravitySensor(coordinator, entry, device.device_id))
+
     async_add_entities(entities)
 
 
-class GrainfatherSensor(
+class GrainfatherSessionSensor(
     CoordinatorEntity[GrainfatherDataUpdateCoordinator],
     SensorEntity,
 ):
-    entity_description: GrainfatherSensorDescription
+    entity_description: GrainfatherSessionSensorDescription
 
     def __init__(
         self,
         coordinator: GrainfatherDataUpdateCoordinator,
         entry: ConfigEntry,
-        description: GrainfatherSensorDescription,
+        batch_id: int | str | None,
+        description: GrainfatherSessionSensorDescription,
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
+        self._batch_id = batch_id
         self._attr_has_entity_name = True
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        self._attr_unique_id = f"{entry.entry_id}_session_{batch_id}_{description.key}"
+
+    @property
+    def _session(self) -> GrainfatherBrewSession | None:
+        for session in self.coordinator.data.brew_sessions:
+            if str(session.batch_id) == str(self._batch_id):
+                return session
+        return None
+
+    @property
+    def available(self) -> bool:
+        return self._session is not None
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        session = self._session
+        if session is None:
+            return None
+        return _session_device_info(session)
 
     @property
     def native_value(self) -> Any:
-        return self.entity_description.value_fn(self.coordinator.data)
+        session = self._session
+        if session is None:
+            return None
+        return self.entity_description.value_fn(session)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        if self.entity_description.attributes_fn is None:
+        session = self._session
+        if session is None or self.entity_description.attributes_fn is None:
             return None
-        return self.entity_description.attributes_fn(self.coordinator.data)
+        return self.entity_description.attributes_fn(session, self.coordinator.data)
 
 
-class GrainfatherFermentationDeviceMetricSensor(
+class GrainfatherFermDeviceTemperatureSensor(
     CoordinatorEntity[GrainfatherDataUpdateCoordinator],
     SensorEntity,
 ):
+    _attr_translation_key = "fermdevice_temperature"
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_suggested_display_precision = 2
+
     def __init__(
         self,
         coordinator: GrainfatherDataUpdateCoordinator,
         entry: ConfigEntry,
-        fermentation_device: GrainfatherFermentationDevice,
-        metric: str,
+        device_id: int | None,
     ) -> None:
         super().__init__(coordinator)
-        self._device_id = fermentation_device.device_id
-        self._metric = metric
+        self._device_id = device_id
         self._attr_has_entity_name = True
-        metric_name = "temperature" if metric == "temperature" else "gravity"
-        self._attr_name = f"Fermentation device {fermentation_device.name or self._device_id} {metric_name}"
-        self._attr_unique_id = (
-            f"{entry.entry_id}_fermentation_device_{self._device_id}_{metric_name}"
-        )
-        self._attr_suggested_display_precision = 2
-        if metric == "temperature":
-            self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-
-    @property
-    def available(self) -> bool:
-        return self._device is not None
-
-    @property
-    def native_value(self) -> Any:
-        if self._device is None:
-            return None
-        if self._metric == "temperature":
-            return self._device.last_temperature
-        return self._device.last_specific_gravity
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
-        if self._device is None:
-            return None
-        return {
-            "device_id": self._device.device_id,
-            "device_type_id": self._device.fermentation_device_type_id,
-            "linked_brew_session_id": self._device.linked_brew_session_id,
-            "linked_brew_session_name": self._device.linked_brew_session_name,
-            "last_heard": self._device.last_heard,
-            "last_specific_gravity": self._device.last_specific_gravity,
-            "is_controller_linked": self._device.is_controller_linked,
-        }
+        self._attr_unique_id = f"{entry.entry_id}_fermdevice_{device_id}_temperature"
 
     @property
     def _device(self) -> GrainfatherFermentationDevice | None:
@@ -209,112 +211,86 @@ class GrainfatherFermentationDeviceMetricSensor(
                 return device
         return None
 
+    @property
+    def available(self) -> bool:
+        return self._device is not None
 
-class GrainfatherEquipmentProfileSensor(
+    @property
+    def native_value(self) -> Any:
+        device = self._device
+        return device.last_temperature if device else None
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        device = self._device
+        if device is None:
+            return None
+        return _ferm_device_info(device, self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        device = self._device
+        if device is None:
+            return None
+        return {
+            "device_id": device.device_id,
+            "last_heard": device.last_heard,
+            "linked_brew_session_id": device.linked_brew_session_id,
+            "linked_brew_session_name": device.linked_brew_session_name,
+            "is_controller_linked": device.is_controller_linked,
+        }
+
+
+class GrainfatherFermDeviceGravitySensor(
     CoordinatorEntity[GrainfatherDataUpdateCoordinator],
     SensorEntity,
 ):
+    _attr_translation_key = "fermdevice_gravity"
+    _attr_suggested_display_precision = 4
+
     def __init__(
         self,
         coordinator: GrainfatherDataUpdateCoordinator,
         entry: ConfigEntry,
-        equipment_profile: GrainfatherEquipmentProfile,
+        device_id: int | None,
     ) -> None:
         super().__init__(coordinator)
-        self._profile_id = equipment_profile.profile_id
+        self._device_id = device_id
         self._attr_has_entity_name = True
-        self._attr_name = f"Equipment profile {equipment_profile.name or self._profile_id}"
-        self._attr_unique_id = f"{entry.entry_id}_equipment_profile_{self._profile_id}"
+        self._attr_unique_id = f"{entry.entry_id}_fermdevice_{device_id}_gravity"
+
+    @property
+    def _device(self) -> GrainfatherFermentationDevice | None:
+        for device in self.coordinator.data.fermentation_devices:
+            if device.device_id == self._device_id:
+                return device
+        return None
 
     @property
     def available(self) -> bool:
-        return self._profile is not None
+        return self._device is not None
 
     @property
     def native_value(self) -> Any:
-        if self._profile is None:
+        device = self._device
+        return device.last_specific_gravity if device else None
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        device = self._device
+        if device is None:
             return None
-        return self._profile.batch_size
+        return _ferm_device_info(device, self.coordinator.data)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        if self._profile is None:
+        device = self._device
+        if device is None:
             return None
-
-        active_profile_id = None
-        if self.coordinator.data.active_batch and self.coordinator.data.active_batch.equipment_profile:
-            active_profile_id = self.coordinator.data.active_batch.equipment_profile.profile_id
-
         return {
-            "profile_id": self._profile.profile_id,
-            "brand": self._profile.brand,
-            "mash_volume": self._profile.mash_volume,
-            "boil_volume": self._profile.boil_volume,
-            "unit_type_id": self._profile.unit_type_id,
-            "is_active_profile": self._profile.profile_id == active_profile_id,
+            "device_id": device.device_id,
+            "last_heard": device.last_heard,
+            "linked_brew_session_id": device.linked_brew_session_id,
+            "linked_brew_session_name": device.linked_brew_session_name,
         }
 
-    @property
-    def _profile(self) -> GrainfatherEquipmentProfile | None:
-        for profile in self.coordinator.data.equipment_profiles:
-            if profile.profile_id == self._profile_id:
-                return profile
-        return None
-
-
-def _active_batch_attributes(snapshot: GrainfatherSnapshot) -> dict[str, Any] | None:
-    batch = snapshot.active_batch
-    if batch is None:
-        return None
-
-    linked_ids = set(batch.fermentation_device_ids)
-    linked_devices = [
-        device
-        for device in snapshot.fermentation_devices
-        if device.device_id in linked_ids
-    ]
-
-    return {
-        "brew_session_id": batch.batch_id,
-        "recipe_id": batch.recipe_id,
-        "status_name": brew_session_status_name(batch.status),
-        "fermentation_device_ids": list(batch.fermentation_device_ids),
-        "fermentation_device_readings": [
-            {
-                "id": device.device_id,
-                "name": device.name,
-                "temperature": device.last_temperature,
-                "gravity": device.last_specific_gravity,
-                "last_heard": device.last_heard,
-            }
-            for device in linked_devices
-        ],
-        "fermentation_steps": [
-            {
-                "id": step.step_id,
-                "name": step.name,
-                "temperature": step.temperature,
-                "time": step.duration,
-                "order": step.order,
-                "time_unit_id": step.time_unit_id,
-                "is_ramp_step": step.is_ramp_step,
-                "finish_temperature": step.finish_temperature,
-            }
-            for step in batch.fermentation_steps
-        ],
-    }
-
-
-def _active_equipment_attributes(snapshot: GrainfatherSnapshot) -> dict[str, Any] | None:
-    batch = snapshot.active_batch
-    if batch is None or batch.equipment_profile is None:
-        return None
-
-    return {
-        "profile_id": batch.equipment_profile.profile_id,
-        "brand": batch.equipment_profile.brand,
-        "batch_size": batch.equipment_profile.batch_size,
-        "mash_volume": batch.equipment_profile.mash_volume,
-        "boil_volume": batch.equipment_profile.boil_volume,
-        "unit_type_id": batch.equipment_profile.unit_type_id,
-    }
