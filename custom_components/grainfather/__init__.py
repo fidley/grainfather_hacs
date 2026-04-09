@@ -87,6 +87,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
     _async_register_services(hass)
+    await _async_create_helpers(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
@@ -184,6 +185,80 @@ def _async_register_services(hass: HomeAssistant) -> None:
             async_handle_set_fermentation_step_duration,
             schema=SET_FERMENTATION_STEP_DURATION_SCHEMA,
         )
+
+
+async def _async_create_helpers(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Create dashboard filter helpers if they don't exist."""
+    # input_number helper: max sessions to display
+    max_sessions_entity = "input_number.grainfather_max_sessions"
+    if hass.states.get(max_sessions_entity) is None:
+        try:
+            await hass.services.async_call(
+                "input_number",
+                "create",
+                {
+                    "name": "Grainfather: Max sessions",
+                    "icon": "mdi:counter",
+                    "min": 1,
+                    "max": 100,
+                    "step": 1,
+                    "initial": 20,
+                    "mode": "slider",
+                    "unit_of_measurement": "",
+                    "unique_id": f"{entry.entry_id}_max_sessions",
+                },
+                blocking=True,
+            )
+        except Exception:
+            # Fallback: set state directly if service doesn't work
+            hass.states.async_set(
+                max_sessions_entity,
+                "20",
+                {
+                    "friendly_name": "Grainfather: Max sessions",
+                    "icon": "mdi:counter",
+                    "unit_of_measurement": "",
+                    "min": 1,
+                    "max": 100,
+                    "step": 1,
+                    "mode": "slider",
+                },
+            )
+
+    # input_boolean helpers: filter by status
+    statuses = {
+        "planning": "Pencil",
+        "brewing": "Kettle",
+        "fermenting": "Flask",
+        "conditioning": "Wine Bottle",
+        "serving": "Beer",
+        "completed": "Check Circle",
+    }
+
+    for status_key, icon_name in statuses.items():
+        helper_entity = f"input_boolean.grainfather_show_{status_key}"
+        if hass.states.get(helper_entity) is None:
+            try:
+                await hass.services.async_call(
+                    "input_boolean",
+                    "create",
+                    {
+                        "name": f"Sessions: {status_key.capitalize()}",
+                        "icon": f"mdi:{icon_name.replace(' ', '-').lower()}",
+                        "unique_id": f"{entry.entry_id}_show_{status_key}",
+                    },
+                    blocking=True,
+                )
+            except Exception:
+                # Fallback: set state directly
+                hass.states.async_set(
+                    helper_entity,
+                    "on",
+                    {
+                        "friendly_name": f"Sessions: {status_key.capitalize()}",
+                        "icon": f"mdi:{icon_name.replace(' ', '-').lower()}",
+                    },
+                )
 
 
 def _get_coordinator(

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -31,6 +31,7 @@ class GrainfatherBrewSession:
     recipe_id: int | None
     session_name: str | None
     recipe_name: str | None
+    recipe_image_url: str | None
     style_name: str | None
     batch_variant_name: str | None
     status: int | None
@@ -84,10 +85,26 @@ class GrainfatherFermentationDevice:
 
 
 @dataclass(slots=True)
+class GrainfatherHistoryPoint:
+    device_id: int
+    brew_session_id: int | None
+    timestamp: str | None
+    temperature: float | None
+    specific_gravity: float | None
+    raw_payload: dict[str, Any]
+
+
+@dataclass(slots=True)
 class GrainfatherSnapshot:
     account: GrainfatherAccount
     brew_sessions: tuple[GrainfatherBrewSession, ...]
     fermentation_devices: tuple[GrainfatherFermentationDevice, ...]
+    fermentation_history_by_device_id: dict[int, tuple[GrainfatherHistoryPoint, ...]] = field(
+        default_factory=dict
+    )
+    brew_session_history_by_batch_id: dict[int, tuple[GrainfatherHistoryPoint, ...]] = field(
+        default_factory=dict
+    )
 
 
 class GrainfatherApiClient:
@@ -155,10 +172,51 @@ class GrainfatherApiClient:
             await self._request_json("GET", "/equipment/fermentation-devices")
         )
 
+        history_from_date = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d")
+        history_by_device_id: dict[int, list[GrainfatherHistoryPoint]] = {}
+        history_by_batch_id: dict[int, list[GrainfatherHistoryPoint]] = {}
+
+        for device in fermentation_devices:
+            if device.device_id is None:
+                continue
+
+            try:
+                history_payload = await self.async_get_fermentation_device_history(
+                    device.device_id,
+                    from_date=history_from_date,
+                    data_format="raw",
+                    metric=True,
+                )
+            except GrainfatherApiError:
+                continue
+
+            points = list(parse_fermentation_device_history_points(history_payload, device.device_id))
+            if not points:
+                continue
+
+            points.sort(
+                key=lambda point: _parse_datetime(point.timestamp)
+                or datetime.min.replace(tzinfo=timezone.utc)
+            )
+            history_by_device_id[device.device_id] = points
+
+            for point in points:
+                if point.brew_session_id is not None:
+                    history_by_batch_id.setdefault(point.brew_session_id, []).append(point)
+
+        frozen_history_by_device_id = {
+            device_id: tuple(points) for device_id, points in history_by_device_id.items()
+        }
+        frozen_history_by_batch_id = {
+            batch_id: tuple(points) for batch_id, points in history_by_batch_id.items()
+        }
+
         return GrainfatherSnapshot(
             account=self._account or GrainfatherAccount(None, self._email, None, None),
             brew_sessions=tuple(brew_sessions),
             fermentation_devices=fermentation_devices,
+            fermentation_history_by_device_id=frozen_history_by_device_id,
+            brew_session_history_by_batch_id=frozen_history_by_batch_id,
         )
 
     async def async_get_brew_sessions(self) -> list[dict[str, Any]]:
@@ -250,6 +308,25 @@ class GrainfatherApiClient:
         )
         return parse_batch_payload(result)
 
+    async def async_get_fermentation_device_history(
+        self,
+        device_id: int,
+        *,
+        from_date: str = "2001-01-07",
+        data_format: str = "raw",
+        metric: bool = True,
+    ) -> list[dict[str, Any]]:
+        payload = await self._request_json(
+            "GET",
+            f"/equipment/fermentation-devices/{device_id}/history",
+            query_params={
+                "from": from_date,
+                "format": data_format,
+                "metric": str(metric).lower(),
+            },
+        )
+        return parse_fermentation_device_history_payload(payload)
+
     async def _request_json(
         self,
         method: str,
@@ -320,6 +397,8 @@ def parse_batch_payload(payload: dict[str, Any] | None) -> GrainfatherBrewSessio
         return None
 
     recipe_payload = payload.get("recipe") or {}
+    recipe_image_payload = recipe_payload.get("image") or {}
+    recipe_style_payload = recipe_payload.get("recipe_style") or recipe_payload.get("recipeStyle") or {}
     equipment_payload = payload.get("equipment_profile") or {}
     fermentation_device_ids = tuple(_parse_int_list(payload.get("fermentation_devices") or []))
     fermentation_steps = parse_fermentation_steps_payload(payload.get("fermentation_steps") or [])
@@ -330,8 +409,17 @@ def parse_batch_payload(payload: dict[str, Any] | None) -> GrainfatherBrewSessio
         recipe_id=_to_int(_first_value(payload, "recipe_id")) or _to_int(_first_value(recipe_payload, "id")),
         session_name=_first_value(payload, "session_name", "sessionName"),
         recipe_name=_first_value(recipe_payload, "name") or _first_value(payload, "name"),
+        recipe_image_url=(
+            _first_value(recipe_image_payload, "url")
+            or _first_value(recipe_payload, "image_url", "imageUrl")
+            or _first_value(payload, "image_url", "imageUrl")
+        ),
         style_name=(
-            _first_value(recipe_payload, "style_name")
+            _first_value(recipe_style_payload, "sub_category_name", "subCategoryName")
+            or _first_value(recipe_payload, "recipe_style-sub_category_name", "recipe_style_sub_category_name")
+            or _first_value(recipe_payload, "style_name")
+            or _first_value(recipe_payload, "styleName")
+            or _first_value(recipe_style_payload, "name")
             or _first_value(recipe_payload.get("style") or {}, "name")
         ),
         batch_variant_name=_first_value(payload, "batch_variant_name", "batchVariantName"),
@@ -367,20 +455,18 @@ def brew_session_unique_fragment(session: GrainfatherBrewSession) -> str:
 
 def brew_session_display_name(session: GrainfatherBrewSession) -> str:
     base_name = session.session_name or session.recipe_name
-    batch_reference = _brew_session_reference(session)
+
+    if session.batch_number is not None:
+        prefix = f"#{session.batch_number:04d}"
+    elif session.batch_id is not None:
+        prefix = f"ID {session.batch_id}"
+    else:
+        prefix = "Batch"
 
     if not base_name:
-        return batch_reference
+        return prefix
 
-    if session.batch_number is not None and f"#{session.batch_number}" in base_name:
-        if session.batch_id is not None:
-            return f"{base_name} (ID {session.batch_id})"
-        return base_name
-
-    if batch_reference == "Batch":
-        return base_name
-
-    return f"{base_name} ({batch_reference})"
+    return f"{prefix} - {base_name}"
 
 
 def parse_fermentation_steps_payload(payload: list[dict[str, Any]]) -> tuple[GrainfatherFermentationStep, ...]:
@@ -443,6 +529,73 @@ def parse_fermentation_device_payload(payload: dict[str, Any]) -> GrainfatherFer
         is_controller_linked=_to_bool(_first_value(payload, "is_controller_linked")),
         raw_payload=deepcopy(payload),
     )
+
+
+def parse_fermentation_device_history_payload(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+
+    if isinstance(payload, dict):
+        data = payload.get("data")
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+
+    return []
+
+
+def parse_fermentation_device_history_points(
+    payload: list[dict[str, Any]],
+    device_id: int,
+) -> tuple[GrainfatherHistoryPoint, ...]:
+    points: list[GrainfatherHistoryPoint] = []
+
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+
+        brew_session_id = _to_int(
+            _first_value(item, "brew_session_id", "brewSessionId", "batch_id", "batchId")
+        )
+        timestamp = _first_value(
+            item,
+            "timestamp",
+            "recorded_at",
+            "recordedAt",
+            "created_at",
+            "createdAt",
+            "date",
+            "datetime",
+            "time",
+            "last_heard",
+        )
+        temperature = _to_float(_first_value(item, "temperature", "temp", "last_temperature"))
+        specific_gravity = _to_float(
+            _first_value(
+                item,
+                "specific_gravity",
+                "specificGravity",
+                "gravity",
+                "sg",
+                "last_sg",
+                "last_specific_gravity",
+            )
+        )
+
+        if temperature is None and specific_gravity is None:
+            continue
+
+        points.append(
+            GrainfatherHistoryPoint(
+                device_id=device_id,
+                brew_session_id=brew_session_id,
+                timestamp=timestamp,
+                temperature=temperature,
+                specific_gravity=specific_gravity,
+                raw_payload=deepcopy(item),
+            )
+        )
+
+    return tuple(points)
 
 
 def build_brew_session_update_payload(

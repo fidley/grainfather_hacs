@@ -1,0 +1,39 @@
+# Grainfather dashboard helpers
+#
+# Include this file from your configuration.yaml:
+#
+#   homeassistant:
+#     packages:
+#       grainfather: !include helpers.yaml
+#
+# After adding, restart Home Assistant.
+
+input_number:
+  grainfather_max_sessions:
+    name: "Grainfather: Max sessions"
+    icon: mdi:counter
+    min: 1
+    max: 100
+    step: 1
+    initial: 20
+    mode: slider
+
+input_boolean:
+  grainfather_show_planning:
+    name: "Sessions: Planning"
+    icon: mdi:pencil-outline
+  grainfather_show_brewing:
+    name: "Sessions: Brewing"
+    icon: mdi:kettle-steam
+  grainfather_show_fermenting:
+    name: "Sessions: Fermenting"
+    icon: mdi:flask
+  grainfather_show_conditioning:
+    name: "Sessions: Conditioning"
+    icon: mdi:bottle-wine
+  grainfather_show_serving:
+    name: "Sessions: Serving"
+    icon: mdi:beer
+  grainfather_show_completed:
+    name: "Sessions: Completed"
+    icon: mdi:check-circle-outline

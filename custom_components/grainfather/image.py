@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from homeassistant.components.select import SelectEntity
+from homeassistant.components.image import ImageEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -15,14 +14,8 @@ from .api import (
     brew_session_display_name,
     brew_session_unique_fragment,
 )
-from .const import (
-    BREW_SESSION_STATUS_NAME_BY_CODE,
-    DOMAIN,
-    normalize_brew_session_status,
-)
+from .const import DOMAIN
 from .coordinator import GrainfatherDataUpdateCoordinator
-
-STATUS_OPTIONS = list(BREW_SESSION_STATUS_NAME_BY_CODE.values())
 
 
 async def async_setup_entry(
@@ -31,24 +24,26 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: GrainfatherDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+
     entities = [
-        GrainfatherSessionStatusSelect(
+        GrainfatherSessionRecipeImage(
             coordinator,
             entry,
             session.batch_id,
             brew_session_unique_fragment(session),
         )
         for session in coordinator.data.brew_sessions
+        if session.recipe_image_url
     ]
+
     async_add_entities(entities)
 
 
-class GrainfatherSessionStatusSelect(
+class GrainfatherSessionRecipeImage(
     CoordinatorEntity[GrainfatherDataUpdateCoordinator],
-    SelectEntity,
+    ImageEntity,
 ):
-    _attr_translation_key = "session_status"
-    _attr_options = STATUS_OPTIONS
+    _attr_translation_key = "session_recipe_image"
 
     def __init__(
         self,
@@ -60,9 +55,7 @@ class GrainfatherSessionStatusSelect(
         super().__init__(coordinator)
         self._batch_id = batch_id
         self._attr_has_entity_name = True
-        self._attr_unique_id = (
-            f"{entry.entry_id}_session_{session_unique_fragment}_status_select"
-        )
+        self._attr_unique_id = f"{entry.entry_id}_session_{session_unique_fragment}_recipe_image"
 
     @property
     def _session(self) -> GrainfatherBrewSession | None:
@@ -73,7 +66,13 @@ class GrainfatherSessionStatusSelect(
 
     @property
     def available(self) -> bool:
-        return self._session is not None
+        session = self._session
+        return session is not None and bool(session.recipe_image_url)
+
+    @property
+    def image_url(self) -> str | None:
+        session = self._session
+        return session.recipe_image_url if session else None
 
     @property
     def device_info(self) -> DeviceInfo | None:
@@ -87,26 +86,3 @@ class GrainfatherSessionStatusSelect(
             model="Brew Session",
             entry_type=DeviceEntryType.SERVICE,
         )
-
-    @property
-    def current_option(self) -> str | None:
-        session = self._session
-        if session is None:
-            return None
-        return BREW_SESSION_STATUS_NAME_BY_CODE.get(session.status)
-
-    async def async_select_option(self, option: str) -> None:
-        session = self._session
-        if session is None:
-            raise HomeAssistantError("Brew session not found")
-
-        recipe_id = session.recipe_id
-        batch_id = session.batch_id
-        if recipe_id is None:
-            raise HomeAssistantError(f"Cannot resolve recipe_id for session {self._batch_id}")
-        if batch_id is None:
-            raise HomeAssistantError(f"Cannot resolve brew_session_id for session {self._batch_id}")
-
-        status = normalize_brew_session_status(option)
-        await self.coordinator.api.async_set_brew_session_status(recipe_id, int(batch_id), status)
-        await self.coordinator.async_request_refresh()

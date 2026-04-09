@@ -1,146 +1,94 @@
-# Grainfather Dashboard — paste into Lovelace raw YAML editor
-# Requires HACS card: auto-entities  (https://github.com/thomasloven/lovelace-auto-entities)
+# Grainfather Dashboard
+# Requires HACS cards:
+#   - auto-sections-strategy  (https://github.com/nielsrowinbik/auto-sections-strategy)
+#   - device-card
+#   - auto-entities             (used only for history-graph in Active Fermentations)
 #
-# auto-entities filters by integration domain so entity_id naming doesn't matter.
+# Helpers (auto-created by integration):
+#   - input_number.grainfather_max_sessions (informational)
+#   - input_boolean.grainfather_show_STATUS for each status
+#   These can be used in custom automations or card filtering.
 
 title: Brewing
 
 views:
-  # ════════════════════════════════════════════════════════════════════
+  # ── Brew Sessions ────────────────────────────────────────────────────────────
+  # Uses auto-sections-strategy to group sessions by device.id.
+  # Sessions are sorted by batch_number (descending = newest first).
+  # For reactive status filtering, use custom automations with the helpers.
   - title: Brew Sessions
     icon: mdi:beer
-    cards:
-      # ── Status dropdown for every session ─────────────────────────
-      - type: custom:auto-entities
-        card:
-          type: entities
-          title: Brew Sessions — Status
-          show_header_toggle: false
+    strategy:
+      type: custom:auto-sections
+      options:
+        # One section per Brew-Session device
+        group_by: device.id
+        group_name: device.id|name
+        max_columns: 2
         filter:
           include:
-            - integration: grainfather
-              entity_id: "select.*"
-              options:
-                secondary_info: last-changed
+            # batch_number sensor carries grainfather_entity_type: brew_session
+            # → exactly ONE entity per brew-session device → ONE card per section
+            - attribute:
+                grainfather_entity_type: brew_session
+          exclude:
+            - attribute: 
+                  status: completed
         sort:
-          method: last_changed
-          reverse: true
+          method: alphabetical
+          direction: descending
+        card_options:
+          _:
+            # auto-sections-strategy passes `entity`; device-card derives device_id
+            # from the entity registry automatically.
+            type: custom:device-card
+            section_order:
+              - sensors
+              - controls
+              - configurations
+              - diagnostics
+            preview_count: 35
 
-      # ── ABV for every session ──────────────────────────────────────
-      - type: custom:auto-entities
-        card:
-          type: entities
-          title: Brew Sessions — ABV
-          show_header_toggle: false
-        filter:
-          include:
-            - integration: grainfather
-              entity_id: "sensor.*_abv"
-              options:
-                secondary_info: last-changed
-        sort:
-          method: name
-
-      # ── Style for every session ────────────────────────────────────
-      - type: custom:auto-entities
-        card:
-          type: entities
-          title: Brew Sessions — Style
-          show_header_toggle: false
-        filter:
-          include:
-            - integration: grainfather
-              entity_id: "sensor.*_style"
-              options:
-                secondary_info: last-changed
-        sort:
-          method: name
-
-      # ── Gravities (OG / FG) for every session ─────────────────────
-      - type: custom:auto-entities
-        card:
-          type: entities
-          title: Brew Sessions — Gravities
-          show_header_toggle: false
-        filter:
-          include:
-            - integration: grainfather
-              entity_id: "sensor.*_original_gravity"
-              options:
-                secondary_info: last-changed
-            - integration: grainfather
-              entity_id: "sensor.*_final_gravity"
-              options:
-                secondary_info: last-changed
-        sort:
-          method: name
-
-  # ════════════════════════════════════════════════════════════════════
+  # ── Active Fermentations ─────────────────────────────────────────────────────
+  # Uses auto-sections-strategy to group fermentation devices by device.id.
+  # History graph at bottom shows all fermentation device data for the past 7 days.
   - title: Active Fermentations
     icon: mdi:thermometer
-    cards:
-      # ── Live device readings ───────────────────────────────────────
-      - type: custom:auto-entities
-        card:
-          type: entities
-          title: Fermentation Devices — Temperature
-          show_header_toggle: false
+    strategy:
+      type: custom:auto-sections
+      options:
+        group_by: device.id
+        group_name: device.id|name
+        max_columns: 2
         filter:
           include:
-            - integration: grainfather
-              entity_id: "sensor.*_temperature"
-              options:
-                secondary_info: last-changed
+            - attribute:
+                grainfather_entity_type: fermentation_device
         sort:
-          method: name
+          method: alphabetical
+          direction: ascending
+        card_options:
+          _:
+            type: custom:device-card
+            section_order:
+              - sensors
+              - controls
+              - configurations
+              - diagnostics
+            preview_count: 35
+        sections:
+          bottom:
+            - type: grid
+              cards:
+                - type: custom:auto-entities
+                  show_empty: false
+                  card:
+                    type: history-graph
+                    title: Fermentation History (7 d)
+                    hours_to_show: 168
+                  card_param: entities
+                  filter:
+                    include:
+                      - attribute:
+                          grainfather_entity_type: fermentation_device
 
-      - type: custom:auto-entities
-        card:
-          type: entities
-          title: Fermentation Devices — Gravity
-          show_header_toggle: false
-        filter:
-          include:
-            - integration: grainfather
-              entity_id: "sensor.*_gravity"
-              options:
-                secondary_info: last-changed
-        sort:
-          method: name
-
-      # ── Temperature history (7 days) ───────────────────────────────
-      - type: custom:auto-entities
-        card:
-          type: history-graph
-          title: Temperature history (7 d)
-          hours_to_show: 168
-        filter:
-          include:
-            - integration: grainfather
-              entity_id: "sensor.*_temperature"
-
-      # ── Gravity history (7 days) ───────────────────────────────────
-      - type: custom:auto-entities
-        card:
-          type: history-graph
-          title: Gravity history (7 d)
-          hours_to_show: 168
-        filter:
-          include:
-            - integration: grainfather
-              entity_id: "sensor.*_gravity"
-
-      # ── Fermentation step duration sliders ────────────────────────
-      - type: custom:auto-entities
-        card:
-          type: entities
-          title: Fermentation Step Durations
-          show_header_toggle: false
-        filter:
-          include:
-            - integration: grainfather
-              domain: number
-              options:
-                secondary_info: last-changed
-        sort:
-          method: name

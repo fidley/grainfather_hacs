@@ -64,6 +64,12 @@
       "session_batch_number": {
         "name": "Batch Number"
       },
+      "session_batch_variant_name": {
+        "name": "Batch Variant"
+      },
+      "session_recipe_image_url": {
+        "name": "Recipe Image"
+      },
       "fermdevice_temperature": {
         "name": "Temperature"
       },

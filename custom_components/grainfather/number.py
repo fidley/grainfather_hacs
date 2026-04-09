@@ -102,8 +102,8 @@ class GrainfatherFermentationStepDurationNumber(
         return DeviceInfo(
             identifiers={(DOMAIN, brew_session_device_identifier(session))},
             name=brew_session_display_name(session),
-            manufacturer="Grainfather",
-            model=session.style_name,
+            manufacturer="fidley",
+            model="Brew Session",
             entry_type=DeviceEntryType.SERVICE,
         )
 
