@@ -41,6 +41,9 @@ def test_parse_batch_payload() -> None:
         "id": 1378631,
         "session_name": "Orange IPA #271",
         "name": "Orange IPA",
+        "condition_date": "2026-04-15T12:00:00.000000Z",
+        "fermentation_start_date": "2026-04-08T08:00:00.000000Z",
+        "created_at": "2026-04-01T08:15:00.000000Z",
         "batch_number": 271,
         "batch_variant_name": "Fermenter 1",
         "status": 20,
@@ -58,6 +61,9 @@ def test_parse_batch_payload() -> None:
     assert batch.recipe_id is None
     assert batch.session_name == "Orange IPA #271"
     assert batch.recipe_name == "Orange IPA"
+    assert batch.condition_date == "2026-04-15T12:00:00.000000Z"
+    assert batch.fermentation_start_date == "2026-04-08T08:00:00.000000Z"
+    assert batch.created_at == "2026-04-01T08:15:00.000000Z"
     assert batch.recipe_image_url == "https://example.com/ipa.jpg"
     assert batch.batch_variant_name == "Fermenter 1"
     assert batch.status == 20
@@ -101,6 +107,23 @@ def test_parse_batch_payload_reads_recipe_image_url_fallback() -> None:
 
     assert batch is not None
     assert batch.recipe_image_url == "https://example.com/fallback.jpg"
+
+
+def test_parse_batch_payload_reads_date_fields_from_camel_case() -> None:
+    payload = {
+        "id": 1,
+        "sessionName": "Session",
+        "conditionDate": "2026-04-20T10:00:00Z",
+        "fermentationStartDate": "2026-04-10T08:00:00Z",
+        "createdAt": "2026-04-05T07:30:00Z",
+    }
+
+    batch = parse_batch_payload(payload)
+
+    assert batch is not None
+    assert batch.condition_date == "2026-04-20T10:00:00Z"
+    assert batch.fermentation_start_date == "2026-04-10T08:00:00Z"
+    assert batch.created_at == "2026-04-05T07:30:00Z"
 
 
 def test_parse_fermentation_devices_payload() -> None:

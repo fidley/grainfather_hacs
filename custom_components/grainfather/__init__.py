@@ -29,7 +29,12 @@ from .const import (
 )
 from .coordinator import GrainfatherDataUpdateCoordinator
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.NUMBER, Platform.SELECT]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.NUMBER,
+    Platform.SELECT,
+    Platform.IMAGE,
+]
 
 STEP_SCHEMA = vol.Schema(
     {

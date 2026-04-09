@@ -22,7 +22,7 @@ from .api import (
     brew_session_display_name,
     brew_session_unique_fragment,
 )
-from .const import DOMAIN, BREW_SESSION_STATUS_NAME_BY_CODE
+from .const import BREW_SESSION_STATUS_NAME_BY_CODE, DOMAIN
 from .coordinator import GrainfatherDataUpdateCoordinator
 
 _MAX_EXPOSED_HISTORY_POINTS = 500
@@ -122,6 +122,9 @@ def _session_batch_number_attributes(
         "recipe_id": session.recipe_id,
         "session_name": session.session_name,
         "recipe_name": session.recipe_name,
+        "condition_date": session.condition_date,
+        "fermentation_start_date": session.fermentation_start_date,
+        "created_at": session.created_at,
         "recipe_image_url": session.recipe_image_url,
         "equipment_name": session.equipment_name,
         "fermentation_device_ids": list(session.fermentation_device_ids),

@@ -32,6 +32,14 @@
     }
   },
   "entity": {
+    "image": {
+      "integration_icon": {
+        "name": "Integration Icon"
+      },
+      "session_recipe_image": {
+        "name": "Recipe Image"
+      }
+    },
     "select": {
       "session_status": {
         "name": "Status",

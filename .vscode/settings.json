@@ -1,6 +1,7 @@
 {
     "chat.tools.terminal.autoApprove": {
         "&": true,
-        "py": true
+        "py": true,
+        "pytest": true
     }
 }

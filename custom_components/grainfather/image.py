@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from homeassistant.components.image import ImageEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -17,6 +19,8 @@ from .api import (
 from .const import DOMAIN
 from .coordinator import GrainfatherDataUpdateCoordinator
 
+ICON_PATH = Path(__file__).with_name("brand") / "icon.png"
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -26,6 +30,10 @@ async def async_setup_entry(
     coordinator: GrainfatherDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities = [
+        GrainfatherIntegrationIconImage(entry)
+    ]
+
+    entities.extend(
         GrainfatherSessionRecipeImage(
             coordinator,
             entry,
@@ -34,9 +42,22 @@ async def async_setup_entry(
         )
         for session in coordinator.data.brew_sessions
         if session.recipe_image_url
-    ]
+    )
 
     async_add_entities(entities)
+
+
+class GrainfatherIntegrationIconImage(ImageEntity):
+    _attr_translation_key = "integration_icon"
+    _attr_content_type = "image/png"
+
+    def __init__(self, entry: ConfigEntry) -> None:
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{entry.entry_id}_integration_icon"
+        self._image_bytes = ICON_PATH.read_bytes()
+
+    async def async_image(self) -> bytes | None:
+        return self._image_bytes
 
 
 class GrainfatherSessionRecipeImage(

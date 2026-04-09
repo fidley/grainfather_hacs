@@ -1,36 +1,91 @@
 # Home Assistant Grainfather Integration
 
-This repository contains a starter Home Assistant custom integration for Grainfather based on the Grainfather web API.
+Custom Home Assistant integration for Grainfather cloud data, including brew sessions, fermentation devices, recipe images, and session controls.
 
-## Current scope
+## Features
 
-- Home Assistant custom component scaffold
-- Config flow using email and password credentials
-- Async API client wrapper for the `community.grainfather.com` API
-- Coordinator-driven sensor entities for account, active brew session, fermentation devices, and equipment profiles
-- Fermentation device temperature and gravity readings exposed as dedicated device sensors
-- Home Assistant services for changing brew session status and fermentation steps
-- Button entities for one-click status transitions (brewing, fermenting, conditioning, completed)
-- Basic tests for payload parsing
+- Config flow with Grainfather email and password
+- Brew session entities with batch, gravity, style, recipe image, and batch variant data
+- Brew session attributes including `condition_date`, `fermentation_start_date`, and `created_at`
+- Fermentation device temperature and gravity sensors
+- History data exposed on brew session attributes
+- Service actions for changing brew session status and fermentation steps
+- Button and select helpers for common brew session actions
+- Local integration branding assets for Home Assistant `2026.3+`
 
-## Project layout
+## Installation
 
-- `custom_components/grainfather/` contains the integration source
-- `tests/` contains starter tests
-- `pyproject.toml` contains local development tooling configuration
+### HACS
 
-## Notes
+1. Open HACS.
+2. Add this repository as a custom repository of type `Integration` if it is not already listed.
+3. Install `Grainfather`.
+4. Restart Home Assistant.
+5. Go to Settings > Devices & Services > Add Integration.
+6. Search for `Grainfather` and enter your Grainfather credentials.
 
-The integration is currently aligned to the API shape captured in the included Postman collection: login via `/api/auth/login`, brew-session polling via `/api/2/brew-sessions`, fermentation device inventory via `/api/equipment/fermentation-devices`, and equipment catalog data via `/api/system-equipment-profiles`.
+### Manual
 
-Services exposed by the integration:
+1. Copy [custom_components/grainfather](custom_components/grainfather) into your Home Assistant `custom_components` directory.
+2. Restart Home Assistant.
+3. Add the `Grainfather` integration from Settings > Devices & Services.
 
-1. `grainfather.set_brew_session_status` with mapped `status` (name or code) and optional `entry_id`, `brew_session_id`, `recipe_id`
-2. `grainfather.set_fermentation_steps` with `fermentation_steps` and optional `entry_id`, `brew_session_id`, `recipe_id`
+## Exposed Data
 
-## Next development steps
+The integration currently polls the Grainfather cloud API and exposes:
 
-1. Confirm the current Grainfather authentication and data endpoints.
-2. Add fixture-based tests from captured API responses.
-3. Package and validate against a local Home Assistant development instance.
-4. Add richer Home Assistant controls once Grainfather status codes are fully documented.
+- Brew sessions
+- Fermentation devices
+- Fermentation history linked to devices and sessions
+- Recipe images
+
+The implementation is based on the API shape captured in the included Postman collection, including:
+
+- `/api/auth/login`
+- `/api/2/brew-sessions`
+- `/api/equipment/fermentation-devices`
+
+## Service Actions
+
+The integration registers these service actions:
+
+1. `grainfather.set_brew_session_status`
+2. `grainfather.set_fermentation_steps`
+3. `grainfather.set_fermentation_step_duration`
+
+`grainfather.set_brew_session_status` accepts a `status` as either a numeric code or one of:
+
+- `planning`
+- `brewing`
+- `fermenting`
+- `conditioning`
+- `serving`
+- `completed`
+
+## Branding
+
+This repository includes local branding assets in [custom_components/grainfather/brand](custom_components/grainfather/brand).
+
+- `icon.png` is used for compact integration surfaces
+- `logo.png` is used where Home Assistant shows a wider brand image
+
+Home Assistant only uses local custom integration branding from `brand/` starting with version `2026.3`.
+
+## Development
+
+- [custom_components/grainfather](custom_components/grainfather) contains the integration source
+- [tests](tests) contains API parsing tests
+- [pyproject.toml](pyproject.toml) contains local tooling configuration
+- [Grainfather.postman_collection.json](Grainfather.postman_collection.json) contains the captured API collection used as a reference
+
+## Current Limitations
+
+- The Grainfather cloud API is not officially documented here, so some payload assumptions are based on observed responses.
+- Test coverage is focused on payload parsing and client behavior, not full Home Assistant integration runtime behavior.
+- The integration currently uses polling rather than push updates.
+
+## Roadmap
+
+1. Add fixture-based tests from captured real API responses.
+2. Validate the integration against a live Home Assistant development instance.
+3. Expand entity coverage once more Grainfather API fields and workflows are confirmed.

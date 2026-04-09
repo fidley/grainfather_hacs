@@ -31,6 +31,9 @@ class GrainfatherBrewSession:
     recipe_id: int | None
     session_name: str | None
     recipe_name: str | None
+    condition_date: str | None
+    fermentation_start_date: str | None
+    created_at: str | None
     recipe_image_url: str | None
     style_name: str | None
     batch_variant_name: str | None
@@ -409,6 +412,13 @@ def parse_batch_payload(payload: dict[str, Any] | None) -> GrainfatherBrewSessio
         recipe_id=_to_int(_first_value(payload, "recipe_id")) or _to_int(_first_value(recipe_payload, "id")),
         session_name=_first_value(payload, "session_name", "sessionName"),
         recipe_name=_first_value(recipe_payload, "name") or _first_value(payload, "name"),
+        condition_date=_first_value(payload, "condition_date", "conditionDate"),
+        fermentation_start_date=_first_value(
+            payload,
+            "fermentation_start_date",
+            "fermentationStartDate",
+        ),
+        created_at=_first_value(payload, "created_at", "createdAt"),
         recipe_image_url=(
             _first_value(recipe_image_payload, "url")
             or _first_value(recipe_payload, "image_url", "imageUrl")
