@@ -214,9 +214,9 @@ def test_select_active_brew_session_prefers_latest_active() -> None:
 def test_normalize_brew_session_status() -> None:
     assert normalize_brew_session_status(30) == 30
     assert normalize_brew_session_status("20") == 20
-    assert normalize_brew_session_status("planning") == 0
+    assert normalize_brew_session_status("planning") == 5
     assert normalize_brew_session_status("Fermenting") == 20
-    assert brew_session_status_name(0) == "planning"
+    assert brew_session_status_name(5) == "planning"
     assert brew_session_status_name(30) == "conditioning"
 
 
@@ -232,7 +232,7 @@ def test_brew_session_identity_helpers_include_batch_id_and_number() -> None:
     assert session is not None
     assert brew_session_unique_fragment(session) == "id_1378631_no_271"
     assert brew_session_device_identifier(session) == "batch_id_1378631_no_271"
-    assert brew_session_display_name(session) == "#0271 - Orange IPA #271"
+    assert brew_session_display_name(session) == "271 1378631 Orange IPA #271"
 
 
 def test_async_get_brew_sessions_follows_pagination_and_sets_deleted_flag() -> None:

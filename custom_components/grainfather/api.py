@@ -488,19 +488,10 @@ def brew_session_unique_fragment(session: GrainfatherBrewSession) -> str:
 
 
 def brew_session_display_name(session: GrainfatherBrewSession) -> str:
-    base_name = session.session_name or session.recipe_name
-
-    if session.batch_number is not None:
-        prefix = f"#{session.batch_number:04d}"
-    elif session.batch_id is not None:
-        prefix = f"ID {session.batch_id}"
-    else:
-        prefix = "Batch"
-
-    if not base_name:
-        return prefix
-
-    return f"{prefix} - {base_name}"
+    batch_number = str(session.batch_number) if session.batch_number is not None else "-"
+    batch_id = str(session.batch_id) if session.batch_id is not None else "-"
+    name = session.session_name or session.recipe_name or "-"
+    return f"{batch_number} {batch_id} {name}"
 
 
 def parse_fermentation_steps_payload(payload: list[dict[str, Any]]) -> tuple[GrainfatherFermentationStep, ...]:

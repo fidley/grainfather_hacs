@@ -29,7 +29,7 @@ SERVICE_CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE = (
 )
 
 BREW_SESSION_STATUS_MAP = {
-	"planning": 0,
+	"planning": 5,
 	"brewing": 10,
 	"fermenting": 20,
 	"conditioning": 30,
@@ -38,7 +38,7 @@ BREW_SESSION_STATUS_MAP = {
 }
 
 BREW_SESSION_STATUS_NAME_BY_CODE = {
-	0: "planning",
+	5: "planning",
 	10: "brewing",
 	20: "fermenting",
 	30: "conditioning",

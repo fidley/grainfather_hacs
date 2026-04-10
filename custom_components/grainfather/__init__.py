@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from aiohttp import ClientSession
 import voluptuous as vol
 
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
+import homeassistant.helpers.entity_registry as er
+
+_CARD_URL = "/grainfather/grainfather-brew-session-card.js"
+_CARD_PATH = Path(__file__).parent / "www" / "grainfather-brew-session-card.js"
+_CARD_RESOURCES_KEY = f"{__name__}_card_registered"
 
 from .api import GrainfatherApiClient
 from .const import (
@@ -37,7 +45,6 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.NUMBER,
     Platform.SELECT,
-    Platform.IMAGE,
 ]
 
 STEP_SCHEMA = vol.Schema(
@@ -99,6 +106,8 @@ CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE_SCHEMA = vol.Schema(
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
+    await _async_remove_legacy_image_entities(hass, entry)
+    await _async_register_card_resources(hass)
 
     session: ClientSession = async_get_clientsession(hass)
     api = GrainfatherApiClient(
@@ -120,6 +129,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def _async_register_card_resources(hass: HomeAssistant) -> None:
+    """Register the custom Lovelace card JS file as a static HTTP resource.
+
+    Registration is guarded so it only runs once per HA instance regardless of
+    how many Grainfather config entries are loaded.
+    """
+    if hass.data.get(_CARD_RESOURCES_KEY):
+        return
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(url_path=_CARD_URL, path=str(_CARD_PATH), cache_headers=False)]
+    )
+    hass.data[_CARD_RESOURCES_KEY] = True
+
+
+async def _async_remove_legacy_image_entities(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+) -> None:
+    entity_registry = er.async_get(hass)
+    for entity_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        if entity_entry.domain == Platform.IMAGE:
+            entity_registry.async_remove(entity_entry.entity_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

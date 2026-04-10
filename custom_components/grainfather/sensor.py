@@ -6,7 +6,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTemperature
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity import DeviceInfo
@@ -50,7 +50,7 @@ SESSION_SENSORS: tuple[GrainfatherSessionSensorDescription, ...] = (
     GrainfatherSessionSensorDescription(
         key="abv",
         translation_key="session_abv",
-        native_unit_of_measurement=PERCENTAGE,
+        native_unit_of_measurement="%vol",
         suggested_display_precision=1,
         value_fn=lambda s: _calc_abv(s.original_gravity, s.final_gravity),
     ),
