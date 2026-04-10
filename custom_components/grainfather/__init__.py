@@ -12,15 +12,19 @@ import homeassistant.helpers.config_validation as cv
 
 from .api import GrainfatherApiClient
 from .const import (
+    SERVICE_CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE,
     CONF_BREW_SESSION_ID,
     CONF_DURATION_MINUTES,
     CONF_EMAIL,
     CONF_ENTRY_ID,
     CONF_FERMENTATION_STEPS,
+    CONF_FINISH_TEMPERATURE,
+    CONF_IS_RAMP_STEP,
     CONF_PASSWORD,
     CONF_RECIPE_ID,
     CONF_STATUS,
     CONF_STEP_INDEX,
+    CONF_TEMPERATURE,
     DOMAIN,
     SERVICE_SET_BREW_SESSION_STATUS,
     SERVICE_SET_FERMENTATION_STEP_DURATION,
@@ -68,12 +72,27 @@ SET_FERMENTATION_STEPS_SCHEMA = vol.Schema(
 )
 
 SET_FERMENTATION_STEP_DURATION_SCHEMA = vol.Schema(
+    vol.All(
+        {
+            vol.Optional(CONF_ENTRY_ID): cv.string,
+            vol.Optional(CONF_BREW_SESSION_ID): vol.Coerce(int),
+            vol.Optional(CONF_RECIPE_ID): vol.Coerce(int),
+            vol.Required(CONF_STEP_INDEX): vol.Coerce(int),
+            vol.Optional(CONF_DURATION_MINUTES): vol.Coerce(int),
+            vol.Optional(CONF_TEMPERATURE): vol.Coerce(float),
+            vol.Optional(CONF_IS_RAMP_STEP): cv.boolean,
+            vol.Optional(CONF_FINISH_TEMPERATURE): vol.Any(None, vol.Coerce(float)),
+        },
+        lambda value: _validate_step_field_update_request(value),
+    )
+)
+
+CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_ENTRY_ID): cv.string,
         vol.Optional(CONF_BREW_SESSION_ID): vol.Coerce(int),
         vol.Optional(CONF_RECIPE_ID): vol.Coerce(int),
         vol.Required(CONF_STEP_INDEX): vol.Coerce(int),
-        vol.Required(CONF_DURATION_MINUTES): vol.Coerce(int),
     }
 )
 
@@ -111,6 +130,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.services.async_remove(DOMAIN, SERVICE_SET_BREW_SESSION_STATUS)
             hass.services.async_remove(DOMAIN, SERVICE_SET_FERMENTATION_STEPS)
             hass.services.async_remove(DOMAIN, SERVICE_SET_FERMENTATION_STEP_DURATION)
+            hass.services.async_remove(
+                DOMAIN, SERVICE_CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE
+            )
     return unload_ok
 
 
@@ -180,7 +202,11 @@ def _async_register_services(hass: HomeAssistant) -> None:
                 recipe_id,
                 brew_session_id,
                 service_call.data[CONF_STEP_INDEX],
-                service_call.data[CONF_DURATION_MINUTES],
+                service_call.data.get(CONF_DURATION_MINUTES),
+                temperature=service_call.data.get(CONF_TEMPERATURE),
+                is_ramp_step=service_call.data.get(CONF_IS_RAMP_STEP),
+                finish_temperature=service_call.data.get(CONF_FINISH_TEMPERATURE),
+                set_finish_temperature=CONF_FINISH_TEMPERATURE in service_call.data,
             )
             await coordinator.async_request_refresh()
 
@@ -189,6 +215,33 @@ def _async_register_services(hass: HomeAssistant) -> None:
             SERVICE_SET_FERMENTATION_STEP_DURATION,
             async_handle_set_fermentation_step_duration,
             schema=SET_FERMENTATION_STEP_DURATION_SCHEMA,
+        )
+
+    if not hass.services.has_service(
+        DOMAIN, SERVICE_CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE
+    ):
+
+        async def async_handle_clear_fermentation_step_finish_temperature(service_call) -> None:
+            coordinator = _get_coordinator(hass, service_call.data.get(CONF_ENTRY_ID))
+            recipe_id, brew_session_id = _resolve_batch_target(
+                coordinator,
+                service_call.data.get(CONF_BREW_SESSION_ID),
+                service_call.data.get(CONF_RECIPE_ID),
+            )
+            await coordinator.api.async_set_fermentation_step_duration(
+                recipe_id,
+                brew_session_id,
+                service_call.data[CONF_STEP_INDEX],
+                finish_temperature=None,
+                set_finish_temperature=True,
+            )
+            await coordinator.async_request_refresh()
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE,
+            async_handle_clear_fermentation_step_finish_temperature,
+            schema=CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE_SCHEMA,
         )
 
 
@@ -315,3 +368,20 @@ def _resolve_batch_target(
             "Cannot resolve target brew session: missing recipe_id or batch_id"
         )
     return first.recipe_id, int(first.batch_id)
+
+
+def _validate_step_field_update_request(value: dict) -> dict:
+    if any(
+        key in value
+        for key in (
+            CONF_DURATION_MINUTES,
+            CONF_TEMPERATURE,
+            CONF_IS_RAMP_STEP,
+            CONF_FINISH_TEMPERATURE,
+        )
+    ):
+        return value
+
+    raise vol.Invalid(
+        "At least one field must be provided: duration_minutes, temperature, is_ramp_step, or finish_temperature"
+    )

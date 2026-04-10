@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTime
+from homeassistant.const import UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceEntryType
@@ -34,6 +34,24 @@ async def async_setup_entry(
         for step_index in range(len(session.fermentation_steps)):
             entities.append(
                 GrainfatherFermentationStepDurationNumber(
+                    coordinator,
+                    entry,
+                    session.batch_id,
+                    brew_session_unique_fragment(session),
+                    step_index,
+                )
+            )
+            entities.append(
+                GrainfatherFermentationStepTemperatureNumber(
+                    coordinator,
+                    entry,
+                    session.batch_id,
+                    brew_session_unique_fragment(session),
+                    step_index,
+                )
+            )
+            entities.append(
+                GrainfatherFermentationStepFinishTemperatureNumber(
                     coordinator,
                     entry,
                     session.batch_id,
@@ -135,5 +153,186 @@ class GrainfatherFermentationStepDurationNumber(
             int(session.batch_id),
             self._step_index,
             duration_minutes,
+        )
+        await self.coordinator.async_request_refresh()
+
+
+class GrainfatherFermentationStepTemperatureNumber(
+    CoordinatorEntity[GrainfatherDataUpdateCoordinator],
+    NumberEntity,
+):
+    _attr_native_min_value = -10.0
+    _attr_native_max_value = 50.0
+    _attr_native_step = 0.1
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_mode = NumberMode.BOX
+
+    def __init__(
+        self,
+        coordinator: GrainfatherDataUpdateCoordinator,
+        entry: ConfigEntry,
+        batch_id: int | str | None,
+        session_unique_fragment: str,
+        step_index: int,
+    ) -> None:
+        super().__init__(coordinator)
+        self._batch_id = batch_id
+        self._step_index = step_index
+        self._attr_has_entity_name = True
+        self._attr_unique_id = (
+            f"{entry.entry_id}_session_{session_unique_fragment}_step_{step_index}_temperature"
+        )
+
+    @property
+    def _session(self) -> GrainfatherBrewSession | None:
+        for session in self.coordinator.data.brew_sessions:
+            if str(session.batch_id) == str(self._batch_id):
+                return session
+        return None
+
+    @property
+    def available(self) -> bool:
+        session = self._session
+        if session is None:
+            return False
+        return self._step_index < len(session.fermentation_steps)
+
+    @property
+    def name(self) -> str:
+        session = self._session
+        if session is not None and self._step_index < len(session.fermentation_steps):
+            step = session.fermentation_steps[self._step_index]
+            step_name = step.name or f"Step {self._step_index + 1}"
+            return f"{step_name} temperature"
+        return f"Step {self._step_index + 1} temperature"
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        session = self._session
+        if session is None:
+            return None
+        return DeviceInfo(
+            identifiers={(DOMAIN, brew_session_device_identifier(session))},
+            name=brew_session_display_name(session),
+            manufacturer="fidley",
+            model="Brew Session",
+            entry_type=DeviceEntryType.SERVICE,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        session = self._session
+        if session is None or self._step_index >= len(session.fermentation_steps):
+            return None
+        return session.fermentation_steps[self._step_index].temperature
+
+    async def async_set_native_value(self, value: float) -> None:
+        session = self._session
+        if session is None:
+            raise HomeAssistantError("Brew session not found")
+        if self._step_index >= len(session.fermentation_steps):
+            raise HomeAssistantError(
+                f"Step index {self._step_index} is out of range for this session"
+            )
+        if session.recipe_id is None or session.batch_id is None:
+            raise HomeAssistantError(
+                "Cannot resolve recipe_id or batch_id for this session"
+            )
+        await self.coordinator.api.async_set_fermentation_step_duration(
+            session.recipe_id,
+            int(session.batch_id),
+            self._step_index,
+            temperature=float(value),
+        )
+        await self.coordinator.async_request_refresh()
+
+
+class GrainfatherFermentationStepFinishTemperatureNumber(
+    CoordinatorEntity[GrainfatherDataUpdateCoordinator],
+    NumberEntity,
+):
+    _attr_native_min_value = -10.0
+    _attr_native_max_value = 50.0
+    _attr_native_step = 0.1
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_mode = NumberMode.BOX
+
+    def __init__(
+        self,
+        coordinator: GrainfatherDataUpdateCoordinator,
+        entry: ConfigEntry,
+        batch_id: int | str | None,
+        session_unique_fragment: str,
+        step_index: int,
+    ) -> None:
+        super().__init__(coordinator)
+        self._batch_id = batch_id
+        self._step_index = step_index
+        self._attr_has_entity_name = True
+        self._attr_unique_id = (
+            f"{entry.entry_id}_session_{session_unique_fragment}_step_{step_index}_finish_temperature"
+        )
+
+    @property
+    def _session(self) -> GrainfatherBrewSession | None:
+        for session in self.coordinator.data.brew_sessions:
+            if str(session.batch_id) == str(self._batch_id):
+                return session
+        return None
+
+    @property
+    def available(self) -> bool:
+        session = self._session
+        if session is None:
+            return False
+        return self._step_index < len(session.fermentation_steps)
+
+    @property
+    def name(self) -> str:
+        session = self._session
+        if session is not None and self._step_index < len(session.fermentation_steps):
+            step = session.fermentation_steps[self._step_index]
+            step_name = step.name or f"Step {self._step_index + 1}"
+            return f"{step_name} finish temperature"
+        return f"Step {self._step_index + 1} finish temperature"
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        session = self._session
+        if session is None:
+            return None
+        return DeviceInfo(
+            identifiers={(DOMAIN, brew_session_device_identifier(session))},
+            name=brew_session_display_name(session),
+            manufacturer="fidley",
+            model="Brew Session",
+            entry_type=DeviceEntryType.SERVICE,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        session = self._session
+        if session is None or self._step_index >= len(session.fermentation_steps):
+            return None
+        return session.fermentation_steps[self._step_index].finish_temperature
+
+    async def async_set_native_value(self, value: float) -> None:
+        session = self._session
+        if session is None:
+            raise HomeAssistantError("Brew session not found")
+        if self._step_index >= len(session.fermentation_steps):
+            raise HomeAssistantError(
+                f"Step index {self._step_index} is out of range for this session"
+            )
+        if session.recipe_id is None or session.batch_id is None:
+            raise HomeAssistantError(
+                "Cannot resolve recipe_id or batch_id for this session"
+            )
+        await self.coordinator.api.async_set_fermentation_step_duration(
+            session.recipe_id,
+            int(session.batch_id),
+            self._step_index,
+            finish_temperature=float(value),
+            set_finish_temperature=True,
         )
         await self.coordinator.async_request_refresh()

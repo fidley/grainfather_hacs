@@ -3,6 +3,7 @@ from typing import Any
 
 from custom_components.grainfather.api import (
     GrainfatherApiClient,
+    GrainfatherApiError,
     _select_active_brew_session,
     build_brew_session_update_payload,
     brew_session_device_identifier,
@@ -231,7 +232,7 @@ def test_brew_session_identity_helpers_include_batch_id_and_number() -> None:
     assert session is not None
     assert brew_session_unique_fragment(session) == "id_1378631_no_271"
     assert brew_session_device_identifier(session) == "batch_id_1378631_no_271"
-    assert brew_session_display_name(session) == "Orange IPA #271 (ID 1378631)"
+    assert brew_session_display_name(session) == "#0271 - Orange IPA #271"
 
 
 def test_async_get_brew_sessions_follows_pagination_and_sets_deleted_flag() -> None:
@@ -276,8 +277,8 @@ def test_async_get_brew_sessions_follows_pagination_and_sets_deleted_flag() -> N
 
     assert sessions == [{"id": 1}, {"id": 2}, {"id": 3}]
     assert client.calls == [
-        {"deleted": 1, "page": 1},
-        {"deleted": 1, "page": 2},
+        {"deleted": 0, "page": 1},
+        {"deleted": 0, "page": 2},
     ]
 
 
@@ -442,3 +443,180 @@ def test_async_get_snapshot_indexes_history_by_device_and_brew_session() -> None
     assert len(snapshot.fermentation_history_by_device_id[69884]) == 1
     assert 1378631 in snapshot.brew_session_history_by_batch_id
     assert len(snapshot.brew_session_history_by_batch_id[1378631]) == 1
+
+
+def test_async_set_fermentation_step_duration_updates_temperature_and_ramp_fields() -> None:
+    class FakeGrainfatherApiClient(GrainfatherApiClient):
+        def __init__(self) -> None:
+            self._session = None
+            self._email = ""
+            self._password = ""
+            self._base_url = "https://community.grainfather.com/api"
+            self._access_token = "token"
+            self._account = None
+
+        async def async_get_brew_session_detail(
+            self, recipe_id: int, brew_session_id: int
+        ) -> dict[str, Any]:
+            del recipe_id, brew_session_id
+            return {
+                "id": 1378631,
+                "status": 20,
+                "fermentation_steps": [
+                    {
+                        "id": 1,
+                        "name": "Primary",
+                        "temperature": 20,
+                        "time": 1440,
+                        "is_ramp_step": False,
+                        "finish_temperature": None,
+                    }
+                ],
+            }
+
+        async def _request_json(
+            self,
+            method: str,
+            path: str,
+            *,
+            json_payload=None,
+            query_params=None,
+            retry_on_auth_error: bool = True,
+        ):
+            del method, path, query_params, retry_on_auth_error
+            assert json_payload is not None
+            step = json_payload["fermentation_steps"][0]
+            assert step["time"] == 2880
+            assert step["temperature"] == 18.5
+            assert step["is_ramp_step"] is True
+            assert step["finish_temperature"] == 16.0
+            return json_payload
+
+    client = FakeGrainfatherApiClient()
+
+    updated = asyncio.run(
+        client.async_set_fermentation_step_duration(
+            12,
+            1378631,
+            0,
+            2880,
+            temperature=18.5,
+            is_ramp_step=True,
+            finish_temperature=16.0,
+            set_finish_temperature=True,
+        )
+    )
+
+    assert updated is not None
+    assert updated.fermentation_steps[0].duration == 2880
+    assert updated.fermentation_steps[0].temperature == 18.5
+    assert updated.fermentation_steps[0].is_ramp_step is True
+    assert updated.fermentation_steps[0].finish_temperature == 16.0
+
+
+def test_async_set_fermentation_step_duration_can_clear_finish_temperature() -> None:
+    class FakeGrainfatherApiClient(GrainfatherApiClient):
+        def __init__(self) -> None:
+            self._session = None
+            self._email = ""
+            self._password = ""
+            self._base_url = "https://community.grainfather.com/api"
+            self._access_token = "token"
+            self._account = None
+
+        async def async_get_brew_session_detail(
+            self, recipe_id: int, brew_session_id: int
+        ) -> dict[str, Any]:
+            del recipe_id, brew_session_id
+            return {
+                "id": 1378631,
+                "status": 20,
+                "fermentation_steps": [
+                    {
+                        "id": 1,
+                        "name": "Primary",
+                        "temperature": 20,
+                        "time": 1440,
+                        "is_ramp_step": True,
+                        "finish_temperature": 18.0,
+                    }
+                ],
+            }
+
+        async def _request_json(
+            self,
+            method: str,
+            path: str,
+            *,
+            json_payload=None,
+            query_params=None,
+            retry_on_auth_error: bool = True,
+        ):
+            del method, path, query_params, retry_on_auth_error
+            assert json_payload is not None
+            step = json_payload["fermentation_steps"][0]
+            assert step["finish_temperature"] is None
+            return json_payload
+
+    client = FakeGrainfatherApiClient()
+
+    updated = asyncio.run(
+        client.async_set_fermentation_step_duration(
+            12,
+            1378631,
+            0,
+            finish_temperature=None,
+            set_finish_temperature=True,
+        )
+    )
+
+    assert updated is not None
+    assert updated.fermentation_steps[0].finish_temperature is None
+
+
+def test_async_set_fermentation_steps_raises_when_status_is_conditioning_or_higher() -> None:
+    class FakeGrainfatherApiClient(GrainfatherApiClient):
+        def __init__(self) -> None:
+            self._session = None
+            self._email = ""
+            self._password = ""
+            self._base_url = "https://community.grainfather.com/api"
+            self._access_token = "token"
+            self._account = None
+
+        async def async_get_brew_session_detail(
+            self, recipe_id: int, brew_session_id: int
+        ) -> dict[str, Any]:
+            del recipe_id, brew_session_id
+            return {
+                "id": 1378631,
+                "status": 30,
+                "fermentation_steps": [
+                    {
+                        "id": 1,
+                        "name": "Primary",
+                        "temperature": 20,
+                        "time": 1440,
+                    }
+                ],
+            }
+
+    client = FakeGrainfatherApiClient()
+
+    try:
+        asyncio.run(
+            client.async_set_fermentation_steps(
+                12,
+                1378631,
+                [
+                    {
+                        "name": "Primary",
+                        "temperature": 18,
+                        "time": 2880,
+                    }
+                ],
+            )
+        )
+        raise AssertionError("Expected GrainfatherApiError")
+    except GrainfatherApiError as err:
+        assert "below conditioning" in str(err)

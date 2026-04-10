@@ -2,6 +2,10 @@
     "chat.tools.terminal.autoApprove": {
         "&": true,
         "py": true,
-        "pytest": true
+        "pytest": true,
+        "/^python -m pytest tests/test_api\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

@@ -232,7 +232,7 @@ class GrainfatherApiClient:
             payload = await self._request_json(
                 "GET",
                 "/2/brew-sessions",
-                query_params={"deleted": 1, "page": current_page},
+                query_params={"deleted": 0, "page": current_page},
             )
             sessions.extend(payload.get("data") or [])
 
@@ -275,6 +275,7 @@ class GrainfatherApiClient:
         fermentation_steps: list[dict[str, Any]],
     ) -> GrainfatherBrewSession | None:
         detail_payload = await self.async_get_brew_session_detail(recipe_id, brew_session_id)
+        _assert_fermentation_steps_editable(detail_payload)
         updated_payload = build_brew_session_update_payload(
             detail_payload,
             fermentation_steps=fermentation_steps,
@@ -291,16 +292,39 @@ class GrainfatherApiClient:
         recipe_id: int,
         brew_session_id: int,
         step_index: int,
-        duration_minutes: int,
+        duration_minutes: int | None = None,
+        *,
+        temperature: float | None = None,
+        is_ramp_step: bool | None = None,
+        finish_temperature: float | None = None,
+        set_finish_temperature: bool = False,
     ) -> GrainfatherBrewSession | None:
         detail_payload = await self.async_get_brew_session_detail(recipe_id, brew_session_id)
+        _assert_fermentation_steps_editable(detail_payload)
         steps = list(detail_payload.get("fermentation_steps") or [])
         if step_index >= len(steps):
             raise GrainfatherApiError(
                 f"Step index {step_index} out of range (session has {len(steps)} steps)"
             )
+
+        if (
+            duration_minutes is None
+            and temperature is None
+            and is_ramp_step is None
+            and not set_finish_temperature
+        ):
+            raise GrainfatherApiError("No fermentation step fields were provided to update")
+
         updated_steps = [dict(step) for step in steps]
-        updated_steps[step_index]["time"] = duration_minutes
+        if duration_minutes is not None:
+            updated_steps[step_index]["time"] = duration_minutes
+        if temperature is not None:
+            updated_steps[step_index]["temperature"] = temperature
+        if is_ramp_step is not None:
+            updated_steps[step_index]["is_ramp_step"] = is_ramp_step
+        if set_finish_temperature:
+            updated_steps[step_index]["finish_temperature"] = finish_temperature
+
         updated_payload = build_brew_session_update_payload(
             detail_payload, fermentation_steps=updated_steps
         )
@@ -652,6 +676,14 @@ def _select_active_brew_session(payload: dict[str, Any]) -> dict[str, Any] | Non
         reverse=True,
     )
     return candidates[0]
+
+
+def _assert_fermentation_steps_editable(payload: dict[str, Any]) -> None:
+    status = _to_int(_first_value(payload, "status", "state"))
+    if status is None or status >= 30:
+        raise GrainfatherApiError(
+            "Fermentation steps can only be changed when brew session status is below conditioning"
+        )
 
 
 def _brew_session_reference(session: GrainfatherBrewSession) -> str:
