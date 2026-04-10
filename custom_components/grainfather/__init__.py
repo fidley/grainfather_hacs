@@ -5,6 +5,7 @@ from pathlib import Path
 from aiohttp import ClientSession
 import voluptuous as vol
 
+from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -17,6 +18,7 @@ import homeassistant.helpers.entity_registry as er
 _CARD_URL = "/grainfather/grainfather-brew-session-card.js"
 _CARD_PATH = Path(__file__).parent / "www" / "grainfather-brew-session-card.js"
 _CARD_RESOURCES_KEY = f"{__name__}_card_registered"
+_CARD_FRONTEND_KEY = f"{__name__}_card_frontend_registered"
 
 from .api import GrainfatherApiClient
 from .const import (
@@ -153,6 +155,9 @@ async def _async_register_card_resources(hass: HomeAssistant) -> None:
     await hass.http.async_register_static_paths(
         [StaticPathConfig(url_path=_CARD_URL, path=str(_CARD_PATH), cache_headers=False)]
     )
+    if not hass.data.get(_CARD_FRONTEND_KEY):
+        add_extra_js_url(hass, _CARD_URL)
+        hass.data[_CARD_FRONTEND_KEY] = True
     hass.data[_CARD_RESOURCES_KEY] = True
 
 

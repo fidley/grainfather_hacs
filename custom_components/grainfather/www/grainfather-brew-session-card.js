@@ -16,6 +16,18 @@ class GrainfatherBrewSessionCard extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._config = null;
     this._hass = null;
+    this._refreshIntervalId = null;
+  }
+
+  connectedCallback() {
+    this._ensureRefreshLoop();
+  }
+
+  disconnectedCallback() {
+    if (this._refreshIntervalId !== null) {
+      clearInterval(this._refreshIntervalId);
+      this._refreshIntervalId = null;
+    }
   }
 
   setConfig(config) {
@@ -32,6 +44,7 @@ class GrainfatherBrewSessionCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     this._render();
+    this._ensureRefreshLoop();
   }
 
   getCardSize() {
@@ -48,6 +61,17 @@ class GrainfatherBrewSessionCard extends HTMLElement {
     const e = this._related(suffix);
     if (!e || e.state === 'unavailable' || e.state === 'unknown') return fallback;
     return e.state;
+  }
+
+  _ensureRefreshLoop() {
+    if (this._refreshIntervalId !== null) return;
+    this._refreshIntervalId = setInterval(() => {
+      const hass = _resolveHass();
+      if (hass) {
+        this._hass = hass;
+        this._render();
+      }
+    }, 10000);
   }
 
   _render() {
@@ -307,6 +331,22 @@ function _escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function _resolveHass() {
+  const root = document.querySelector('home-assistant');
+  if (!root) return null;
+  if (root.hass) return root.hass;
+
+  const rootShadow = root.shadowRoot;
+  if (rootShadow) {
+    const main = rootShadow.querySelector('home-assistant-main');
+    if (main && main.hass) {
+      return main.hass;
+    }
+  }
+
+  return null;
 }
 
 if (!customElements.get('grainfather-brew-session-card')) {
