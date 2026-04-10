@@ -309,7 +309,9 @@ function _escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-customElements.define('grainfather-brew-session-card', GrainfatherBrewSessionCard);
+if (!customElements.get('grainfather-brew-session-card')) {
+  customElements.define('grainfather-brew-session-card', GrainfatherBrewSessionCard);
+}
 
 window.customCards = window.customCards || [];
 window.customCards.push({

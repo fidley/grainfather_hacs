@@ -104,6 +104,17 @@ CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE_SCHEMA = vol.Schema(
 )
 
 
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the Grainfather integration domain.
+
+    Register static resources early so Lovelace can resolve custom cards even
+    before/while config entries are being set up.
+    """
+    hass.data.setdefault(DOMAIN, {})
+    await _async_register_card_resources(hass)
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     await _async_remove_legacy_image_entities(hass, entry)
