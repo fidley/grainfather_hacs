@@ -127,6 +127,21 @@ def test_parse_batch_payload_reads_date_fields_from_camel_case() -> None:
     assert batch.created_at == "2026-04-05T07:30:00Z"
 
 
+def test_parse_batch_payload_reads_batch_variant_from_object() -> None:
+    payload = {
+        "id": 1,
+        "session_name": "Session",
+        "batch_variant": {
+            "name": "Fermenter 3",
+        },
+    }
+
+    batch = parse_batch_payload(payload)
+
+    assert batch is not None
+    assert batch.batch_variant_name == "Fermenter 3"
+
+
 def test_parse_fermentation_devices_payload() -> None:
     payload = [
         {

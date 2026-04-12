@@ -427,6 +427,7 @@ def parse_batch_payload(payload: dict[str, Any] | None) -> GrainfatherBrewSessio
     recipe_image_payload = recipe_payload.get("image") or {}
     recipe_style_payload = recipe_payload.get("recipe_style") or recipe_payload.get("recipeStyle") or {}
     equipment_payload = payload.get("equipment_profile") or {}
+    batch_variant_payload = payload.get("batch_variant") or payload.get("batchVariant") or {}
     fermentation_device_ids = tuple(_parse_int_list(payload.get("fermentation_devices") or []))
     fermentation_steps = parse_fermentation_steps_payload(payload.get("fermentation_steps") or [])
     equipment_profile = parse_equipment_profile_payload(equipment_payload) if equipment_payload else None
@@ -456,7 +457,16 @@ def parse_batch_payload(payload: dict[str, Any] | None) -> GrainfatherBrewSessio
             or _first_value(recipe_style_payload, "name")
             or _first_value(recipe_payload.get("style") or {}, "name")
         ),
-        batch_variant_name=_first_value(payload, "batch_variant_name", "batchVariantName"),
+        batch_variant_name=(
+            _first_value(
+                payload,
+                "batch_variant_name",
+                "batchVariantName",
+                "batch_variant",
+                "batchVariant",
+            )
+            or _first_value(batch_variant_payload, "name", "title")
+        ),
         status=_to_int(_first_value(payload, "status", "state")),
         batch_number=_to_int(_first_value(payload, "batch_number", "batchNumber")),
         original_gravity=_to_float(_first_value(payload, "original_gravity", "originalGravity")),

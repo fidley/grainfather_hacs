@@ -183,9 +183,7 @@ class GrainfatherBrewSessionCard extends LitElement {
 
   getGridOptions() {
     return {
-      columns: 6,
-      min_rows: 4,
-      rows: 6,
+      columns: 'full',
     };
   }
 

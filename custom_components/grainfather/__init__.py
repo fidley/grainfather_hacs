@@ -15,8 +15,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.entity_registry as er
 
-_CARD_URL = "/grainfather/grainfather-brew-session-card.js"
-_CARD_PATH = Path(__file__).parent / "www" / "grainfather-brew-session-card.js"
+_CARD_URL = "/grainfather/grainfather-brew-session-card-v2.js"
+_CARD_PATH = Path(__file__).parent / "www" / "grainfather-brew-session-card-v2.js"
 _CARD_RESOURCES_KEY = f"{__name__}_card_registered"
 _CARD_FRONTEND_KEY = f"{__name__}_card_frontend_registered"
 

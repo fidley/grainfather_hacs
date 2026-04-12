@@ -117,6 +117,7 @@ def _session_batch_number_attributes(
     return {
         "grainfather_entity_type": "brew_session",
         "batch_number": session.batch_number if session.batch_number is not None else 0,
+        "batch_variant_name": session.batch_variant_name,
         "status": BREW_SESSION_STATUS_NAME_BY_CODE.get(session.status or -1, "unknown"),
         "brew_session_id": session.batch_id,
         "recipe_id": session.recipe_id,
