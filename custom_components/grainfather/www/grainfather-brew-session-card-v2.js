@@ -521,6 +521,35 @@ if (!customElements.get('grainfather-brew-session-card')) {
   customElements.define('grainfather-brew-session-card', GrainfatherBrewSessionCard);
 }
 
+if (!window.__grainfatherShowcaseCardLoading) {
+  window.__grainfatherShowcaseCardLoading = true;
+  const showcaseModuleUrl = new URL('./grainfather-brew-session-card-showcase.js', import.meta.url).toString();
+  import(showcaseModuleUrl).catch(() => {
+    // Keep the showcase type available even if module loading fails.
+    if (!customElements.get('grainfather-brew-session-card-showcase')) {
+      class GrainfatherBrewSessionCardShowcaseFallback extends GrainfatherBrewSessionCard {}
+      customElements.define(
+        'grainfather-brew-session-card-showcase',
+        GrainfatherBrewSessionCardShowcaseFallback,
+      );
+    }
+
+    window.customCards = window.customCards || [];
+    const hasShowcaseCard = window.customCards.some(
+      (card) => card && card.type === 'grainfather-brew-session-card-showcase',
+    );
+    if (!hasShowcaseCard) {
+      window.customCards.push({
+        type: 'grainfather-brew-session-card-showcase',
+        name: 'Grainfather Brew Session Showcase',
+        description: 'Showcase fallback layout for a Grainfather brew session.',
+        preview: false,
+        configurable: true,
+      });
+    }
+  });
+}
+
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'grainfather-brew-session-card',
