@@ -17,6 +17,10 @@ import homeassistant.helpers.entity_registry as er
 
 _CARD_URL = "/grainfather/grainfather-brew-session-card-v2.js"
 _CARD_PATH = Path(__file__).parent / "www" / "grainfather-brew-session-card-v2.js"
+_CARD_V3_URL = "/grainfather/grainfather-brew-session-card-v3.js"
+_CARD_V3_PATH = Path(__file__).parent / "www" / "grainfather-brew-session-card-v3.js"
+_ON_TAP_CARD_URL = "/grainfather/grainfather-on-tap-card.js"
+_ON_TAP_CARD_PATH = Path(__file__).parent / "www" / "grainfather-on-tap-card.js"
 _SHOWCASE_CARD_URL = "/grainfather/grainfather-brew-session-card-showcase.js"
 _SHOWCASE_CARD_PATH = (
     Path(__file__).parent / "www" / "grainfather-brew-session-card-showcase.js"
@@ -160,6 +164,16 @@ async def _async_register_card_resources(hass: HomeAssistant) -> None:
         [
             StaticPathConfig(url_path=_CARD_URL, path=str(_CARD_PATH), cache_headers=False),
             StaticPathConfig(
+                url_path=_CARD_V3_URL,
+                path=str(_CARD_V3_PATH),
+                cache_headers=False,
+            ),
+            StaticPathConfig(
+                url_path=_ON_TAP_CARD_URL,
+                path=str(_ON_TAP_CARD_PATH),
+                cache_headers=False,
+            ),
+            StaticPathConfig(
                 url_path=_SHOWCASE_CARD_URL,
                 path=str(_SHOWCASE_CARD_PATH),
                 cache_headers=False,
@@ -168,6 +182,8 @@ async def _async_register_card_resources(hass: HomeAssistant) -> None:
     )
     if not hass.data.get(_CARD_FRONTEND_KEY):
         add_extra_js_url(hass, _CARD_URL)
+        add_extra_js_url(hass, _CARD_V3_URL)
+        add_extra_js_url(hass, _ON_TAP_CARD_URL)
         add_extra_js_url(hass, _SHOWCASE_CARD_URL)
         hass.data[_CARD_FRONTEND_KEY] = True
     hass.data[_CARD_RESOURCES_KEY] = True

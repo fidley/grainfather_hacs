@@ -78,6 +78,30 @@ Home Assistant only uses local custom integration branding from `brand/` startin
 - [pyproject.toml](pyproject.toml) contains local tooling configuration
 - [Grainfather.postman_collection.json](Grainfather.postman_collection.json) contains the captured API collection used as a reference
 
+## Lovelace Cards
+
+The repository includes several custom JavaScript cards in [custom_components/grainfather/www](custom_components/grainfather/www).
+
+### On Tap Blackboard Card
+
+`grainfather-on-tap-card.js` renders a pub-style blackboard list of beers currently in status `serving`.
+
+- Shows only: batch number, style, ABV
+- Filters sessions to `status = serving`
+- If a batch appears in multiple variants, only the first variant is shown
+
+Example resource and card configuration:
+
+```yaml
+resources:
+	- url: /grainfather/grainfather-on-tap-card.js
+		type: module
+
+cards:
+	- type: custom:grainfather-on-tap-card
+		max_items: 12
+```
+
 ## Current Limitations
 
 - The Grainfather cloud API is not officially documented here, so some payload assumptions are based on observed responses.
