@@ -127,6 +127,7 @@ def _session_batch_number_attributes(
         "fermentation_start_date": session.fermentation_start_date,
         "created_at": session.created_at,
         "recipe_image_url": session.recipe_image_url,
+        "notes": session.notes,
         "equipment_name": session.equipment_name,
         "fermentation_device_ids": list(session.fermentation_device_ids),
         "fermentation_steps": [

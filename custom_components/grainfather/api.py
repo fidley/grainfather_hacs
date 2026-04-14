@@ -35,6 +35,7 @@ class GrainfatherBrewSession:
     fermentation_start_date: str | None
     created_at: str | None
     recipe_image_url: str | None
+    notes: str | None
     style_name: str | None
     batch_variant_name: str | None
     status: int | None
@@ -449,6 +450,7 @@ def parse_batch_payload(payload: dict[str, Any] | None) -> GrainfatherBrewSessio
             or _first_value(recipe_payload, "image_url", "imageUrl")
             or _first_value(payload, "image_url", "imageUrl")
         ),
+        notes=_first_value(payload, "notes", "note", "brew_notes", "brewNotes"),
         style_name=(
             _first_value(recipe_style_payload, "sub_category_name", "subCategoryName")
             or _first_value(recipe_payload, "recipe_style-sub_category_name", "recipe_style_sub_category_name")
