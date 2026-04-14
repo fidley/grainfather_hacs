@@ -16,10 +16,14 @@ CONF_TEMPERATURE = "temperature"
 CONF_IS_RAMP_STEP = "is_ramp_step"
 CONF_FINISH_TEMPERATURE = "finish_temperature"
 CONF_SCAN_INTERVAL = "scan_interval"
+CONF_INCLUDE_COMPLETED_SESSIONS = "include_completed_sessions"
 
 DEFAULT_SCAN_INTERVAL = 300  # seconds
+DEFAULT_INCLUDE_COMPLETED_SESSIONS = False
 MIN_SCAN_INTERVAL = 60
 MAX_SCAN_INTERVAL = 3600
+
+BREW_SESSION_STATUS_COMPLETED = 40
 
 SERVICE_SET_BREW_SESSION_STATUS = "set_brew_session_status"
 SERVICE_SET_FERMENTATION_STEPS = "set_fermentation_steps"
@@ -34,7 +38,7 @@ BREW_SESSION_STATUS_MAP = {
 	"fermenting": 20,
 	"conditioning": 30,
 	"serving": 35,
-	"completed": 40
+    "completed": BREW_SESSION_STATUS_COMPLETED
 }
 
 BREW_SESSION_STATUS_NAME_BY_CODE = {
@@ -43,7 +47,7 @@ BREW_SESSION_STATUS_NAME_BY_CODE = {
 	20: "fermenting",
 	30: "conditioning",
     35: "serving",
-	40: "completed",
+    BREW_SESSION_STATUS_COMPLETED: "completed",
 }
 
 

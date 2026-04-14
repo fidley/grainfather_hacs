@@ -30,6 +30,7 @@ _CARD_FRONTEND_KEY = f"{__name__}_card_frontend_registered"
 
 from .api import GrainfatherApiClient
 from .const import (
+    CONF_INCLUDE_COMPLETED_SESSIONS,
     SERVICE_CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE,
     CONF_BREW_SESSION_ID,
     CONF_DURATION_MINUTES,
@@ -47,9 +48,11 @@ from .const import (
     SERVICE_SET_BREW_SESSION_STATUS,
     SERVICE_SET_FERMENTATION_STEP_DURATION,
     SERVICE_SET_FERMENTATION_STEPS,
+    DEFAULT_INCLUDE_COMPLETED_SESSIONS,
     normalize_brew_session_status,
 )
 from .coordinator import GrainfatherDataUpdateCoordinator
+from .api import brew_session_unique_fragment
 
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
@@ -139,6 +142,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = GrainfatherDataUpdateCoordinator(hass, api, entry)
     await coordinator.async_config_entry_first_refresh()
 
+    include_completed = entry.options.get(
+        CONF_INCLUDE_COMPLETED_SESSIONS,
+        DEFAULT_INCLUDE_COMPLETED_SESSIONS,
+    )
+    if not include_completed:
+        await _async_remove_stale_session_entities(hass, entry, coordinator)
+
     hass.data[DOMAIN][entry.entry_id] = coordinator
     _async_register_services(hass)
     await _async_create_helpers(hass, entry)
@@ -196,6 +206,36 @@ async def _async_remove_legacy_image_entities(
     entity_registry = er.async_get(hass)
     for entity_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
         if entity_entry.domain == Platform.IMAGE:
+            entity_registry.async_remove(entity_entry.entity_id)
+
+
+async def _async_remove_stale_session_entities(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: GrainfatherDataUpdateCoordinator,
+) -> None:
+    """Remove session entities not present in the current snapshot.
+
+    This is used when completed sessions are excluded, so old completed entities
+    are fully removed from the registry instead of remaining unavailable.
+    """
+    entity_registry = er.async_get(hass)
+    active_fragments = {
+        brew_session_unique_fragment(session)
+        for session in coordinator.data.brew_sessions
+    }
+    prefix = f"{entry.entry_id}_session_"
+
+    for entity_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        unique_id = entity_entry.unique_id or ""
+        if not unique_id.startswith(prefix):
+            continue
+
+        is_active = any(
+            unique_id.startswith(f"{prefix}{fragment}_")
+            for fragment in active_fragments
+        )
+        if not is_active:
             entity_registry.async_remove(entity_entry.entity_id)
 
 

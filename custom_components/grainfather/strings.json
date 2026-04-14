@@ -23,10 +23,12 @@
       "init": {
         "title": "Grainfather options",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Update interval (seconds)",
+          "include_completed_sessions": "Include completed brew sessions"
         },
         "data_description": {
-          "scan_interval": "How often (in seconds) to poll the Grainfather cloud API. Minimum 60 s, maximum 3600 s."
+          "scan_interval": "How often (in seconds) to poll the Grainfather cloud API. Minimum 60 s, maximum 3600 s.",
+          "include_completed_sessions": "If disabled, completed sessions are filtered out from integration data and entities become unavailable."
         }
       }
     }
