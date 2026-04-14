@@ -82,24 +82,71 @@ Home Assistant only uses local custom integration branding from `brand/` startin
 
 The repository includes several custom JavaScript cards in [custom_components/grainfather/www](custom_components/grainfather/www).
 
+### Brew Collection Card
+
+`grainfather-brew-collection-card.js` displays multiple brew sessions in a responsive grid with advanced filtering and deduplication.
+
+**Features:**
+
+- Display multiple brew sessions at once (showcase or v2 layout)
+- Filter by status (fermenting, conditioning, serving, brewing, planning, completed)
+- Optional deduplication: show only one card per unique batch_number + session name pair
+- Optional grouping by status in separate sections
+- Responsive auto-fill grid (1-3 columns depending on screen size)
+
+**Example configuration:**
+
+```yaml
+resources:
+  - url: /grainfather/grainfather-brew-collection-card.js
+    type: module
+
+cards:
+  - type: custom:grainfather-brew-collection-card
+    title: Active Brews
+    entities:
+      - sensor.grainfather_batch_01_batch_number
+      - sensor.grainfather_batch_02_batch_number
+      - sensor.grainfather_batch_03_batch_number
+    card_type: showcase
+    statuses: [fermenting, conditioning, serving]
+    deduplicate: false
+    group_by_status: true
+```
+
+**Configuration Options:**
+
+- `title` (string): Display name for the collection
+- `entities` (list): Grainfather batch_number sensors to display
+- `card_type` (string): Card layout — `showcase` or `brew-session-v2`
+- `statuses` (list): Filter by these statuses (default: all available)
+- `deduplicate` (boolean): Show only one card per batch_number + name pair
+- `group_by_status` (boolean): Group sessions by status in separate sections
+
+### Brew Session Cards (Showcase & V2)
+
+Display individual brew session details. Both support `density_unit: sg|plato|brix` configuration.
+
 ### On Tap Blackboard Card
 
 `grainfather-on-tap-card.js` renders a pub-style blackboard list of beers currently in status `serving`.
 
-- Shows only: batch number, style, ABV
+- Shows only: batch number, style, ABV, original gravity
 - Filters sessions to `status = serving`
 - If a batch appears in multiple variants, only the first variant is shown
+- Supports `density_unit: sg|plato|brix` on all included brew session cards and the On Tap card
 
 Example resource and card configuration:
 
 ```yaml
 resources:
-	- url: /grainfather/grainfather-on-tap-card.js
-		type: module
+  - url: /grainfather/grainfather-on-tap-card.js
+    type: module
 
 cards:
-	- type: custom:grainfather-on-tap-card
-		max_items: 12
+  - type: custom:grainfather-on-tap-card
+    max_items: 12
+    density_unit: sg
 ```
 
 ## Current Limitations

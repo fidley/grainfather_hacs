@@ -165,12 +165,14 @@ class GrainfatherBrewSessionCard extends LitElement {
 
   setConfig(config) {
     this._config = {
+      density_unit: 'sg',
       show_image: true,
       show_status_dates: true,
       show_fermentation_steps: true,
       show_batch_variant_name: true,
       ...(config || {}),
     };
+    this._config.density_unit = _normalizeDensityUnit(this._config.density_unit);
   }
 
   set config(config) {
@@ -194,6 +196,7 @@ class GrainfatherBrewSessionCard extends LitElement {
 
     return {
       entity: fallbackEntity,
+      density_unit: 'sg',
       show_image: true,
       show_status_dates: true,
       show_fermentation_steps: true,
@@ -216,6 +219,20 @@ class GrainfatherBrewSessionCard extends LitElement {
           default: true,
           selector: {
             boolean: {},
+          },
+        },
+        {
+          name: 'density_unit',
+          default: 'sg',
+          selector: {
+            select: {
+              mode: 'dropdown',
+              options: [
+                { value: 'sg', label: 'SG' },
+                { value: 'plato', label: 'Plato' },
+                { value: 'brix', label: 'Brix' },
+              ],
+            },
           },
         },
         {
@@ -252,6 +269,9 @@ class GrainfatherBrewSessionCard extends LitElement {
         if (schema.name === 'show_image') {
           return 'Show image';
         }
+        if (schema.name === 'density_unit') {
+          return 'Density unit';
+        }
         if (schema.name === 'show_status_dates') {
           return 'Show status dates';
         }
@@ -269,6 +289,9 @@ class GrainfatherBrewSessionCard extends LitElement {
         }
         if (schema.name === 'show_image') {
           return 'Display the recipe image banner.';
+        }
+        if (schema.name === 'density_unit') {
+          return 'Display gravity values as SG, Plato, or Brix.';
         }
         if (schema.name === 'show_status_dates') {
           return 'Display condition and fermentation start dates.';
@@ -352,11 +375,12 @@ class GrainfatherBrewSessionCard extends LitElement {
     const showStatusDates = this._config?.show_status_dates !== false;
     const showFermentationSteps = this._config?.show_fermentation_steps !== false;
     const showBatchVariantName = this._config?.show_batch_variant_name !== false;
+    const densityUnit = _normalizeDensityUnit(this._config?.density_unit);
 
     const abvRaw = this._stateValue('abv');
     const abv = abvRaw !== '—' ? `${abvRaw} %vol` : '—';
-    const og = _formatDecimal(this._stateValue('original_gravity'));
-    const fg = _formatDecimal(this._stateValue('final_gravity'));
+    const og = _formatGravityFromSg(this._stateValue('original_gravity'), densityUnit, true);
+    const fg = _formatGravityFromSg(this._stateValue('final_gravity'), densityUnit, true);
     const style = this._stateValue('style');
     const statusColor = STATUS_COLORS[status] || '#9e9e9e';
 
@@ -474,17 +498,45 @@ function _formatDate(iso) {
   }
 }
 
-function _formatDecimal(value, digits = 3) {
+function _formatGravityFromSg(value, unit = 'sg', includeUnit = false) {
   if (value == null || value === '—' || value === 'unknown' || value === 'unavailable') {
     return '—';
   }
 
-  const parsed = Number.parseFloat(value);
-  if (!Number.isFinite(parsed)) {
+  const sg = Number.parseFloat(value);
+  if (!Number.isFinite(sg)) {
     return String(value);
   }
 
-  return parsed.toFixed(digits);
+  const normalizedUnit = _normalizeDensityUnit(unit);
+  if (normalizedUnit === 'plato') {
+    const formatted = _convertSgToPlato(sg).toFixed(1);
+    return includeUnit ? `${formatted} °P` : formatted;
+  }
+
+  if (normalizedUnit === 'brix') {
+    const formatted = _convertSgToBrix(sg).toFixed(1);
+    return includeUnit ? `${formatted} °Bx` : formatted;
+  }
+
+  const formatted = sg.toFixed(3);
+  return includeUnit ? `${formatted} SG` : formatted;
+}
+
+function _normalizeDensityUnit(unit) {
+  const normalized = String(unit || 'sg').toLowerCase();
+  if (normalized === 'plato' || normalized === 'brix') {
+    return normalized;
+  }
+  return 'sg';
+}
+
+function _convertSgToPlato(sg) {
+  return -616.868 + (1111.14 * sg) - (630.272 * sg * sg) + (135.997 * sg * sg * sg);
+}
+
+function _convertSgToBrix(sg) {
+  return (((182.4601 * sg) - 775.6821) * sg + 1262.7794) * sg - 669.5622;
 }
 
 function _stepMeta(step) {

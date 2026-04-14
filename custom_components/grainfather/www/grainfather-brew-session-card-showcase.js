@@ -3,8 +3,8 @@ import { LitElement, css, html, nothing } from 'https://unpkg.com/lit@3.3.0/inde
 const CARD_I18N = {
   en: {
     abv: 'ABV',
-    initial_sg: 'Initial SG',
-    final_sg: 'Final SG',
+    initial_sg: 'Initial gravity',
+    final_sg: 'Final gravity',
     status: 'Status',
     style: 'Style',
     variant: 'Variant',
@@ -19,8 +19,8 @@ const CARD_I18N = {
   },
   pl: {
     abv: 'ABV',
-    initial_sg: 'Poczatkowe SG',
-    final_sg: 'Koncowe SG',
+    initial_sg: 'Gestosc poczatkowa',
+    final_sg: 'Gestosc koncowa',
     status: 'Status',
     style: 'Styl',
     variant: 'Wariant',
@@ -54,11 +54,30 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
 
     ha-card {
       overflow: hidden;
-      border-radius: 12px;
-      border: 1px solid #cfd5de;
-      background: #f6f7fa;
-      box-shadow: 0 1px 5px rgba(22, 28, 38, 0.12);
-      color: #2a3a50;
+      border-radius: 14px;
+      border: 1px solid #6f6a57;
+      background:
+        radial-gradient(circle at 12% 15%, rgba(255, 255, 255, 0.05) 0 8%, transparent 9%),
+        radial-gradient(circle at 88% 80%, rgba(255, 255, 255, 0.04) 0 10%, transparent 11%),
+        linear-gradient(160deg, #212121 0%, #131313 45%, #1b1b1b 100%);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.34), inset 0 0 0 2px rgba(255, 255, 255, 0.03);
+      color: #f4efe3;
+      position: relative;
+    }
+
+    ha-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        -10deg,
+        transparent 0,
+        transparent 22px,
+        rgba(255, 255, 255, 0.012) 22px,
+        rgba(255, 255, 255, 0.012) 23px
+      );
+      z-index: 0;
     }
 
     .shell {
@@ -74,10 +93,11 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      border-right: 1px solid #d2d9e3;
-      background: #eef2f7;
+      border-right: 1px dashed rgba(255, 255, 255, 0.15);
+      background: #171717;
       min-height: 220px;
       padding: 10px;
+      z-index: 1;
     }
 
     .image-wrap img {
@@ -88,8 +108,8 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
       min-height: 0;
       object-fit: cover;
       display: block;
-      border-radius: 6px;
-      filter: saturate(1.02) contrast(1.02);
+      border-radius: 8px;
+      filter: saturate(0.88) contrast(1.08);
     }
 
     .image-fallback {
@@ -98,54 +118,61 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
       justify-content: center;
       min-height: 220px;
       font-size: 28px;
-      background: #dfe6f0;
-      color: #3a4a60;
-      border-radius: 6px;
+      background: #2a2a2a;
+      color: #f4efe3;
+      border-radius: 8px;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
       width: 100%;
     }
 
     .content {
-      padding: 12px 14px;
+      padding: 14px 16px 16px;
       display: grid;
       grid-template-rows: auto auto auto;
-      gap: 6px;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
     }
 
     .header {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
-      gap: 6px;
-      border-bottom: 1px solid #ccd4de;
-      padding-bottom: 8px;
-      margin-bottom: 2px;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      padding-bottom: 10px;
+      margin-bottom: 0;
     }
 
     .title {
       margin: 0;
-      font-size: clamp(1.08rem, 1.45vw, 1.8rem);
-      line-height: 1.18;
-      font-weight: 760;
+      font-size: clamp(1.12rem, 1.4vw, 1.65rem);
+      line-height: 1.16;
+      font-weight: 740;
       letter-spacing: 0;
-      color: #2d3d53;
+      color: #fff8e8;
       text-wrap: balance;
+      font-family: 'Chalkduster', 'Segoe Print', 'Bradley Hand', cursive;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 4px rgba(255, 255, 255, 0.12);
     }
 
     .subtitle {
       margin: 0;
-      color: #30445f;
-      font-size: clamp(0.82rem, 0.95vw, 1rem);
-      font-weight: 650;
-      line-height: 1.2;
+      color: #d8d1bd;
+      font-size: clamp(0.86rem, 0.94vw, 0.98rem);
+      font-weight: 560;
+      line-height: 1.35;
       white-space: normal;
       overflow-wrap: anywhere;
+      font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
+      text-shadow: none;
     }
 
     .status-line {
-      display: none;
+      display: flex;
       justify-content: flex-start;
       align-items: center;
-      margin-bottom: 4px;
+      margin-top: -2px;
     }
 
     .dot-cluster {
@@ -159,7 +186,7 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
       width: 5px;
       height: 5px;
       border-radius: 50%;
-      background: rgba(227, 237, 249, 0.85);
+      background: rgba(255, 255, 255, 0.55);
     }
 
     .dot-cluster span:nth-child(2) {
@@ -170,7 +197,7 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
 
     .stats {
       display: grid;
-      gap: 2px;
+      gap: 8px;
       margin-top: 0;
     }
 
@@ -185,28 +212,26 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
     }
 
     .stats-secondary {
-      margin-top: 6px;
-      padding-top: 2px;
-      border-top: 1px solid #ccd4de;
+      margin-top: 2px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .stat-row {
       display: grid;
-      grid-template-columns: 24px minmax(0, 1fr) auto;
-      gap: 8px;
+      grid-template-columns: 24px minmax(132px, 1fr) auto;
+      gap: 10px;
       align-items: center;
-      min-height: 48px;
-      border: none;
-      border-top: 1px solid #ccd4de;
-      border-radius: 0;
-      background: transparent;
-      padding: 0 6px;
-      box-shadow: none;
+      min-height: 50px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.035);
+      padding: 0 10px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
 
     .stat-row-secondary {
-      min-height: 42px;
-      border-top-color: #d5dbe3;
+      min-height: 46px;
     }
 
     .stat-row-status .stat-value {
@@ -220,33 +245,39 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
       display: grid;
       place-items: center;
       background: transparent;
-      color: #374a63;
+      color: #f8e8a2;
     }
 
     .stat-label {
-      font-size: clamp(0.86rem, 1.05vw, 1.32rem);
-      font-weight: 520;
-      color: #31445f;
+      font-size: clamp(0.8rem, 0.95vw, 1rem);
+      font-weight: 700;
+      color: #cfc6ae;
       white-space: normal;
-      line-height: 1.1;
+      line-height: 1.2;
       overflow: hidden;
       text-overflow: ellipsis;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
     }
 
     .stat-value {
-      font-size: clamp(0.96rem, 1.2vw, 1.45rem);
+      font-size: clamp(1rem, 1.1vw, 1.22rem);
       font-weight: 760;
       letter-spacing: 0;
-      color: #2b3d55;
+      color: #fffaf0;
       white-space: nowrap;
-      padding-left: 6px;
+      padding-left: 0;
       text-align: right;
+      font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
+      text-shadow: none;
+      font-variant-numeric: tabular-nums;
     }
 
     .stat-value-text {
-      font-size: clamp(0.9rem, 1.02vw, 1.22rem);
+      font-size: clamp(0.96rem, 1vw, 1.08rem);
       font-weight: 700;
-      max-width: 220px;
+      max-width: 240px;
       white-space: normal;
       line-height: 1.2;
       overflow-wrap: anywhere;
@@ -255,66 +286,74 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
     .status-chip {
       display: inline-flex;
       align-items: center;
-      padding: 2px 8px;
+      padding: 4px 10px;
       border-radius: 999px;
-      border: 1px solid #ccd4de;
-      background: #eef2f7;
-      color: #31445f;
-      font-size: 0.72rem;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(248, 232, 162, 0.12);
+      color: #fff3c4;
+      font-size: 0.78rem;
       line-height: 1.5;
       font-weight: 700;
       text-transform: capitalize;
       white-space: nowrap;
+      letter-spacing: 0.04em;
+      font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
     }
 
     .details-area {
-      margin-top: 4px;
+      margin-top: 2px;
       display: grid;
-      gap: 0;
+      gap: 8px;
     }
 
     .date-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 6px;
-      border: none;
-      border-top: 1px solid #d5dbe3;
-      border-radius: 0;
-      padding: 8px 6px;
-      background: transparent;
+      gap: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.03);
     }
 
     .date-label {
-      font-size: 0.92rem;
-      color: #31445f;
-      font-weight: 560;
+      font-size: 0.8rem;
+      color: #cfc6ae;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
     }
 
     .date-value {
-      font-size: 0.96rem;
-      color: #2b3d55;
+      font-size: 0.98rem;
+      color: #fffaf0;
       font-weight: 700;
       text-align: right;
+      font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
+      font-variant-numeric: tabular-nums;
     }
 
     .steps-box {
       margin-top: 6px;
-      border: 1px solid #ccd4de;
+      border: 1px dashed rgba(255, 255, 255, 0.2);
       border-radius: 8px;
-      background: #f9fafc;
+      background: rgba(255, 255, 255, 0.03);
       overflow: hidden;
       max-height: 150px;
       overflow-y: auto;
     }
 
     .steps-title {
-      font-size: 0.84rem;
+      font-size: 0.8rem;
       letter-spacing: 0.45px;
       text-transform: uppercase;
-      color: #2f425d;
+      color: #ddd5be;
       padding: 8px 10px;
-      border-bottom: 1px solid #d5dbe3;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
+      font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
+      text-shadow: none;
     }
 
     .step-row {
@@ -324,7 +363,7 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
       gap: 6px;
       font-size: 0.88rem;
       padding: 8px 10px;
-      border-bottom: 1px solid #e0e5ec;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.11);
     }
 
     .step-row:last-child {
@@ -332,20 +371,25 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
     }
 
     .step-name {
-      color: #30435f;
+      color: #f6f2e8;
       font-weight: 600;
+      font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
     }
 
     .step-meta {
-      color: #344964;
+      color: #d4ccb8;
       text-align: right;
       font-size: 0.84rem;
       font-weight: 620;
+      font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
     }
 
     .error {
       padding: 16px;
-      color: var(--error-color, #ff6b6b);
+      color: #ffb4b4;
+      font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
+      position: relative;
+      z-index: 1;
     }
 
     @media (max-width: 980px) {
@@ -361,7 +405,7 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
 
       .image-wrap {
         border-right: none;
-        border-bottom: 1px solid rgba(189, 208, 230, 0.2);
+        border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
       }
 
       .image-wrap img,
@@ -387,8 +431,8 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
 
       .stat-row {
         min-height: 42px;
-        grid-template-columns: 22px minmax(0, 1fr) auto;
-        padding: 0 6px;
+        grid-template-columns: 22px minmax(110px, 1fr) auto;
+        padding: 0 8px;
       }
 
       .stat-icon {
@@ -422,12 +466,14 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
 
   setConfig(config) {
     this._config = {
+      density_unit: 'sg',
       show_image: true,
       show_status_dates: true,
       show_fermentation_steps: true,
       show_batch_variant_name: true,
       ...(config || {}),
     };
+    this._config.density_unit = _normalizeDensityUnit(this._config.density_unit);
   }
 
   set config(config) {
@@ -451,6 +497,7 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
 
     return {
       entity: fallbackEntity,
+      density_unit: 'sg',
       show_image: true,
       show_status_dates: true,
       show_fermentation_steps: true,
@@ -473,6 +520,20 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
           default: true,
           selector: {
             boolean: {},
+          },
+        },
+        {
+          name: 'density_unit',
+          default: 'sg',
+          selector: {
+            select: {
+              mode: 'dropdown',
+              options: [
+                { value: 'sg', label: 'SG' },
+                { value: 'plato', label: 'Plato' },
+                { value: 'brix', label: 'Brix' },
+              ],
+            },
           },
         },
         {
@@ -509,6 +570,9 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
         if (schema.name === 'show_image') {
           return 'Show image';
         }
+        if (schema.name === 'density_unit') {
+          return 'Density unit';
+        }
         if (schema.name === 'show_status_dates') {
           return 'Show status dates';
         }
@@ -526,6 +590,9 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
         }
         if (schema.name === 'show_image') {
           return 'Display the recipe image panel.';
+        }
+        if (schema.name === 'density_unit') {
+          return 'Display gravity values as SG, Plato, or Brix.';
         }
         if (schema.name === 'show_status_dates') {
           return 'Display condition and fermentation start dates.';
@@ -618,14 +685,16 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
     const showStatusDates = this._config?.show_status_dates !== false;
     const showFermentationSteps = this._config?.show_fermentation_steps !== false;
     const showBatchVariantName = this._config?.show_batch_variant_name !== false;
+    const densityUnit = _normalizeDensityUnit(this._config?.density_unit);
 
     const abvRaw = this._stateValue('abv');
     const abv = abvRaw !== '—' ? `${abvRaw} %` : '—';
-    const og = _formatDecimal(this._stateValue('original_gravity'));
-    const fg = _formatDecimal(this._stateValue('final_gravity'));
+    const og = _formatGravityFromSg(this._stateValue('original_gravity'), densityUnit, true);
+    const fg = _formatGravityFromSg(this._stateValue('final_gravity'), densityUnit, true);
     const style = this._stateValue('style');
     const hasBatchInTitle = /#\s*\d+/.test(String(sessionName));
     const cardTitle = hasBatchInTitle ? String(sessionName) : String(sessionName);
+    const statusLabel = _formatStatusLabel(status);
 
     return html`
       <ha-card>
@@ -655,7 +724,7 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
             </div>
 
             <div class="status-line">
-              <span class="status-chip">${status}</span>
+              <span class="status-chip">${statusLabel}</span>
             </div>
 
             <div class="stats">
@@ -681,7 +750,7 @@ class GrainfatherBrewSessionCardShowcase extends LitElement {
                 <div class="stat-row stat-row-status">
                   <div class="stat-icon">${_iconFlask()}</div>
                   <div class="stat-label">${this._t('status')}:</div>
-                  <div class="stat-value stat-value-text">${status}</div>
+                  <div class="stat-value stat-value-text">${statusLabel}</div>
                 </div>
               </div>
 
@@ -780,17 +849,58 @@ function _showcaseStepMeta(step) {
   return parts.join(' · ');
 }
 
-function _formatDecimal(value, digits = 3) {
+function _formatGravityFromSg(value, unit = 'sg', includeUnit = false) {
   if (value == null || value === '—' || value === 'unknown' || value === 'unavailable') {
     return '—';
   }
 
-  const parsed = Number.parseFloat(value);
-  if (!Number.isFinite(parsed)) {
+  const sg = Number.parseFloat(value);
+  if (!Number.isFinite(sg)) {
     return String(value);
   }
 
-  return parsed.toFixed(digits);
+  const normalizedUnit = _normalizeDensityUnit(unit);
+  if (normalizedUnit === 'plato') {
+    const formatted = _convertSgToPlato(sg).toFixed(1);
+    return includeUnit ? `${formatted} °P` : formatted;
+  }
+
+  if (normalizedUnit === 'brix') {
+    const formatted = _convertSgToBrix(sg).toFixed(1);
+    return includeUnit ? `${formatted} °Bx` : formatted;
+  }
+
+  const formatted = sg.toFixed(3);
+  return includeUnit ? `${formatted} SG` : formatted;
+}
+
+function _normalizeDensityUnit(unit) {
+  const normalized = String(unit || 'sg').toLowerCase();
+  if (normalized === 'plato' || normalized === 'brix') {
+    return normalized;
+  }
+  return 'sg';
+}
+
+function _convertSgToPlato(sg) {
+  return -616.868 + (1111.14 * sg) - (630.272 * sg * sg) + (135.997 * sg * sg * sg);
+}
+
+function _convertSgToBrix(sg) {
+  return (((182.4601 * sg) - 775.6821) * sg + 1262.7794) * sg - 669.5622;
+}
+
+function _formatStatusLabel(status) {
+  const normalized = String(status || '').trim();
+  if (!normalized) {
+    return 'Unknown';
+  }
+
+  return normalized
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
 }
 
 function _resolveHass() {
