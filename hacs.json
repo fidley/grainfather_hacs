@@ -1,8 +1,6 @@
 {
   "name": "Grainfather",
   "content_in_root": false,
-  "country": ["*"],
-  "domains": ["grainfather"],
   "homeassistant": "2025.1.0",
   "render_readme": true
 }
