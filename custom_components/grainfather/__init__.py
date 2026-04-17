@@ -69,6 +69,8 @@ PLATFORMS: list[Platform] = [
     Platform.SELECT,
 ]
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 STEP_SCHEMA = vol.Schema(
     {
         vol.Optional("id"): vol.Coerce(int),
