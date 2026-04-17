@@ -4,10 +4,10 @@
   "codeowners": ["@fidley"],
   "config_flow": true,
   "dependencies": ["frontend", "http"],
-  "documentation": "https://github.com/fidley/HACS-Grainfather#readme",
+  "documentation": "https://github.com/fidley/grainfather_hacs#readme",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/fidley/HACS-Grainfather/issues",
+  "issue_tracker": "https://github.com/fidley/grainfather_hacs/issues",
   "loggers": ["custom_components.grainfather"],
   "requirements": [],
   "version": "0.1.4"
