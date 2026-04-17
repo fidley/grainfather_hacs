@@ -5,6 +5,7 @@ const CARD_I18N = {
     abv: 'ABV',
     initial_sg: 'Initial gravity',
     final_sg: 'Final gravity',
+    style: 'Style',
     status: 'Status',
     batch_prefix: '#',
     id_label: 'ID',
@@ -16,6 +17,7 @@ const CARD_I18N = {
     abv: 'ABV',
     initial_sg: 'Gestosc poczatkowa',
     final_sg: 'Gestosc koncowa',
+    style: 'Styl',
     status: 'Status',
     batch_prefix: '#',
     id_label: 'ID',
@@ -44,107 +46,123 @@ class GrainfatherBrewSessionCardV3 extends LitElement {
 
     ha-card {
       overflow: hidden;
-      border-radius: 12px;
-      border: 1px solid #cfd5de;
-      background: #f6f7fa;
-      box-shadow: 0 1px 5px rgba(22, 28, 38, 0.12);
-      color: #2a3a50;
+      border-radius: 14px;
+      background: #3a3f4a;
+      box-shadow: 0 2px 10px rgba(0,0,0,.45);
+      color: #e8ebef;
     }
 
-    .shell {
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px 6px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+
+    .batch-id {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #e8ebef;
+      line-height: 1;
+    }
+
+    .session-badge {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #c6ccd6;
+      background: rgba(255,255,255,.08);
+      padding: 2px 8px;
+      border-radius: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 70%;
+      text-align: right;
+    }
+
+    .metrics {
       display: grid;
-      grid-template-columns: minmax(120px, 30%) 1fr;
-      min-height: 160px;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 6px 8px 10px;
+    }
+
+    .metric {
+      background: rgba(0,0,0,.22);
+      border-radius: 10px;
+      padding: 8px 10px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .metric.full-width {
+      grid-column: span 2;
+    }
+
+    .metric.image-metric {
+      grid-column: span 2;
+      padding: 6px;
+      background: rgba(0,0,0,.18);
     }
 
     .image-wrap {
-      border-right: 1px solid #d2d9e3;
-      background: #eef2f7;
-      min-height: 160px;
-      padding: 8px;
+      width: 100%;
+      height: 140px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(255,255,255,.06);
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
     }
 
     .image-wrap img {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      border-radius: 6px;
       display: block;
     }
 
     .image-fallback {
       width: 100%;
       height: 100%;
-      min-height: 140px;
-      border-radius: 6px;
-      background: #dfe6f0;
-      color: #3a4a60;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 26px;
+      font-size: 30px;
+      color: #c6ccd6;
+      background: rgba(255,255,255,.05);
     }
 
-    .content {
-      padding: 10px 12px;
-    }
-
-    .shell:not(:has(.image-wrap)) .content {
-      padding: 10px 16px;
-    }
-
-    .title {
-      margin: 0 0 8px;
-      font-size: clamp(1rem, 1.22vw, 1.32rem);
-      line-height: 1.2;
-      font-weight: 760;
-      color: #2d3d53;
-      border-bottom: 1px solid #ccd4de;
-      padding-bottom: 6px;
-    }
-
-    .row {
-      min-height: 38px;
+    .metric-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #8fa0b4;
+      letter-spacing: .06em;
       display: flex;
-      gap: 6px;
       align-items: center;
-      border-top: 1px solid #d5dbe3;
-      color: #31445f;
-      padding: 6px 8px;
-    }
-
-    .row:first-of-type {
-      border-top: none;
-    }
-
-    .icon {
-      width: 18px;
-      height: 18px;
-      color: #3a4c65;
-      display: grid;
-      place-items: center;
-      flex: 0 0 18px;
-    }
-
-    .label {
-      font-size: clamp(0.86rem, 0.99vw, 1.04rem);
-      font-weight: 580;
+      gap: 5px;
+      text-transform: uppercase;
       line-height: 1.15;
-      flex: 0 0 auto;
-      white-space: nowrap;
+    }
+    .metric-label svg {
+      color: #8fa0b4;
+      flex-shrink: 0;
     }
 
-    .value {
-      font-size: clamp(0.96rem, 1.14vw, 1.18rem);
-      font-weight: 760;
-      color: #2b3d55;
-      white-space: nowrap;
-      flex: 0 0 auto;
-      margin-left: 2px;
+    .metric-value {
+      font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+      font-weight: 800;
+      line-height: 1;
+      color: #d9c44a;
+      letter-spacing: -.01em;
+    }
+
+    .metric-value.white {
+      color: #e8ebef;
     }
 
     .error {
@@ -153,18 +171,8 @@ class GrainfatherBrewSessionCardV3 extends LitElement {
     }
 
     @media (max-width: 760px) {
-      .shell {
-        grid-template-columns: 1fr;
-      }
-
-      .image-wrap {
-        border-right: none;
-        border-bottom: 1px solid #d2d9e3;
-        min-height: 130px;
-      }
-
-      .content {
-        padding: 10px;
+      .batch-id {
+        font-size: 1.55rem;
       }
     }
   `;
@@ -192,11 +200,11 @@ class GrainfatherBrewSessionCardV3 extends LitElement {
 
   setConfig(config) {
     this._config = {
-      density_unit: 'sg',
+      density_unit: 'default',
       show_image: true,
+      show_batch_variant: true,
       ...(config || {}),
     };
-    this._config.density_unit = _normalizeDensityUnit(this._config.density_unit);
   }
 
   set config(config) {
@@ -220,8 +228,9 @@ class GrainfatherBrewSessionCardV3 extends LitElement {
 
     return {
       entity: fallbackEntity,
-      density_unit: 'sg',
+      density_unit: 'default',
       show_image: true,
+      show_batch_variant: true,
     };
   }
 
@@ -244,16 +253,24 @@ class GrainfatherBrewSessionCardV3 extends LitElement {
         },
         {
           name: 'density_unit',
-          default: 'sg',
+          default: 'default',
           selector: {
             select: {
               mode: 'dropdown',
               options: [
+                { value: 'default', label: 'Integration default' },
                 { value: 'sg', label: 'SG' },
                 { value: 'plato', label: 'Plato' },
                 { value: 'brix', label: 'Brix' },
               ],
             },
+          },
+        },
+        {
+          name: 'show_batch_variant',
+          default: true,
+          selector: {
+            boolean: {},
           },
         },
       ],
@@ -272,6 +289,9 @@ class GrainfatherBrewSessionCardV3 extends LitElement {
         if (schema.name === 'density_unit') {
           return 'Density unit';
         }
+        if (schema.name === 'show_batch_variant') {
+          return 'Show batch variant in header';
+        }
         return undefined;
       },
       computeHelper: (schema) => {
@@ -282,7 +302,10 @@ class GrainfatherBrewSessionCardV3 extends LitElement {
           return 'Display the recipe image panel.';
         }
         if (schema.name === 'density_unit') {
-          return 'Display gravity values as SG, Plato, or Brix.';
+          return 'Display gravity values as Integration default, SG, Plato, or Brix.';
+        }
+        if (schema.name === 'show_batch_variant') {
+          return 'When enabled, header badge shows session and batch variant (session · variant).';
         }
         return undefined;
       },
@@ -354,9 +377,18 @@ class GrainfatherBrewSessionCardV3 extends LitElement {
     const attrs = entity.attributes;
     const sessionName = attrs.session_name || attrs.recipe_name || '—';
     const status = attrs.status || this._t('unknown');
+    const style = attrs.style_name || attrs.style || this._stateValue('style', this._t('unknown'));
     const imageUrl = attrs.recipe_image_url;
+    const batchVariantName = attrs.batch_variant_name || null;
+    const densityUnit = _resolveDensityUnit(this._config?.density_unit, attrs);
     const showImage = this._config?.show_image !== false;
-    const densityUnit = _normalizeDensityUnit(this._config?.density_unit);
+    const showBatchVariant = this._config?.show_batch_variant !== false;
+    const batchNumber = entity.state !== 'unknown' && entity.state !== 'unavailable'
+      ? entity.state
+      : (attrs.batch_number ?? '—');
+    const sessionBadge = showBatchVariant
+      ? [sessionName, batchVariantName].filter(Boolean).join(' · ') || sessionName
+      : sessionName;
 
     const abvRaw = this._stateValue('abv');
     const abv = abvRaw !== '—' ? `${abvRaw} %` : '—';
@@ -365,43 +397,47 @@ class GrainfatherBrewSessionCardV3 extends LitElement {
 
     return html`
       <ha-card>
-        <div class="shell">
+        <div class="header">
+          <div class="batch-id">${this._t('batch_prefix')}${batchNumber}</div>
+          <div class="session-badge">${sessionBadge}</div>
+        </div>
+
+        <div class="metrics">
           ${showImage
             ? html`
-                <div class="image-wrap">
-                  ${imageUrl
-                    ? html`<img src=${imageUrl} alt="Recipe image" />`
-                    : html`<div class="image-fallback">🍺</div>`}
+                <div class="metric image-metric">
+                  <div class="image-wrap">
+                    ${imageUrl
+                      ? html`<img src=${imageUrl} alt="Recipe image" />`
+                      : html`<div class="image-fallback">🍺</div>`}
+                  </div>
                 </div>
               `
             : nothing}
 
-          <div class="content">
-            <h2 class="title">${sessionName}</h2>
+          <div class="metric">
+            <div class="metric-label">${_iconPercent()} ${this._t('abv')}</div>
+            <div class="metric-value">${abv}</div>
+          </div>
 
-            <div class="row">
-              <div class="icon">${_iconPercent()}</div>
-              <div class="label">${this._t('abv')}:</div>
-              <div class="value">${abv}</div>
-            </div>
+          <div class="metric">
+            <div class="metric-label">${_iconThermometer()} ${this._t('initial_sg')}</div>
+            <div class="metric-value white">${og}</div>
+          </div>
 
-            <div class="row">
-              <div class="icon">${_iconThermometer()}</div>
-              <div class="label">${this._t('initial_sg')}:</div>
-              <div class="value">${og}</div>
-            </div>
+          <div class="metric">
+            <div class="metric-label">${_iconDrop()} ${this._t('final_sg')}</div>
+            <div class="metric-value white">${fg}</div>
+          </div>
 
-            <div class="row">
-              <div class="icon">${_iconDrop()}</div>
-              <div class="label">${this._t('final_sg')}:</div>
-              <div class="value">${fg}</div>
-            </div>
+          <div class="metric">
+            <div class="metric-label">${_iconFlask()} ${this._t('status')}</div>
+            <div class="metric-value white">${status}</div>
+          </div>
 
-            <div class="row">
-              <div class="icon">${_iconFlask()}</div>
-              <div class="label">${this._t('status')}:</div>
-              <div class="value">${status}</div>
-            </div>
+          <div class="metric full-width">
+            <div class="metric-label">${_iconStyle()} ${this._t('style')}</div>
+            <div class="metric-value white">${style || this._t('unknown')}</div>
           </div>
         </div>
       </ha-card>
@@ -440,6 +476,16 @@ function _normalizeDensityUnit(unit) {
     return normalized;
   }
   return 'sg';
+}
+
+function _resolveDensityUnit(configuredUnit, attrs) {
+  const explicit = String(configuredUnit || '').toLowerCase();
+  if (explicit === 'sg' || explicit === 'plato' || explicit === 'brix') {
+    return explicit;
+  }
+
+  const fromIntegration = String(attrs?.default_density_unit || 'sg').toLowerCase();
+  return _normalizeDensityUnit(fromIntegration);
 }
 
 function _convertSgToPlato(sg) {
@@ -504,15 +550,24 @@ function _iconFlask() {
   `;
 }
 
-if (!customElements.get('grainfather-brew-session-card-v3')) {
-  customElements.define('grainfather-brew-session-card-v3', GrainfatherBrewSessionCardV3);
+function _iconStyle() {
+  return html`
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M7 4h10"></path>
+      <path d="M9 4v5a4 4 0 0 1-1 2.7l-2.8 3.2A3.2 3.2 0 0 0 7.6 20h8.8a3.2 3.2 0 0 0 2.4-5.1L16 11.7A4 4 0 0 1 15 9V4"></path>
+    </svg>
+  `;
+}
+
+if (!customElements.get('grainfather-brew-session-card-compact')) {
+  customElements.define('grainfather-brew-session-card-compact', GrainfatherBrewSessionCardV3);
 }
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: 'grainfather-brew-session-card-v3',
-  name: 'Grainfather Brew Session Card v3',
-  description: 'Small light layout with key brew session metrics.',
+  type: 'grainfather-brew-session-card-compact',
+  name: 'Grainfather Brew Session Compact',
+  description: 'Compact dark layout with key brew session metrics.',
   preview: false,
   configurable: true,
 });

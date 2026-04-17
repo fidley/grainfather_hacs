@@ -9,13 +9,19 @@ class GrainfatherBrewSessionCard extends LitElement {
 
   static styles = css`
     :host { display: block; }
-    ha-card { overflow: hidden; }
+    ha-card {
+      overflow: hidden;
+      border-radius: 14px;
+      background: #3a3f4a;
+      box-shadow: 0 2px 10px rgba(0,0,0,.45);
+      color: #e8ebef;
+    }
 
     .banner {
       position: relative;
       width: 100%;
       height: 150px;
-      background: var(--secondary-background-color);
+      background: rgba(0,0,0,.18);
       overflow: hidden;
     }
 
@@ -33,6 +39,8 @@ class GrainfatherBrewSessionCard extends LitElement {
       align-items: center;
       justify-content: center;
       font-size: 56px;
+      color: #c6ccd6;
+      background: rgba(255,255,255,.05);
     }
 
     .status-badge {
@@ -41,7 +49,7 @@ class GrainfatherBrewSessionCard extends LitElement {
       right: 10px;
       padding: 3px 10px;
       border-radius: 12px;
-      color: #fff;
+      color: #e8ebef;
       font-size: 0.72rem;
       font-weight: 700;
       text-transform: capitalize;
@@ -53,14 +61,14 @@ class GrainfatherBrewSessionCard extends LitElement {
     .title {
       font-size: 1.1rem;
       font-weight: 600;
-      color: var(--primary-text-color);
+      color: #e8ebef;
       line-height: 1.3;
       margin: 0 0 2px;
     }
 
     .subtitle {
       font-size: 0.78rem;
-      color: var(--secondary-text-color);
+      color: #8fa0b4;
       margin: 0 0 12px;
     }
 
@@ -74,7 +82,7 @@ class GrainfatherBrewSessionCard extends LitElement {
     .stat {
       flex: 1;
       min-width: 52px;
-      background: var(--secondary-background-color);
+      background: rgba(0,0,0,.22);
       border-radius: 8px;
       padding: 7px 6px;
       text-align: center;
@@ -82,7 +90,7 @@ class GrainfatherBrewSessionCard extends LitElement {
 
     .stat-label {
       font-size: 0.6rem;
-      color: var(--secondary-text-color);
+      color: #8fa0b4;
       text-transform: uppercase;
       letter-spacing: 0.6px;
       margin-bottom: 3px;
@@ -91,7 +99,7 @@ class GrainfatherBrewSessionCard extends LitElement {
     .stat-value {
       font-size: 0.9rem;
       font-weight: 600;
-      color: var(--primary-text-color);
+      color: #e8ebef;
       word-break: break-word;
     }
 
@@ -105,12 +113,12 @@ class GrainfatherBrewSessionCard extends LitElement {
       gap: 12px;
     }
 
-    .meta-label { color: var(--secondary-text-color); }
-    .meta-value { color: var(--primary-text-color); font-weight: 500; text-align: right; }
+    .meta-label { color: #8fa0b4; }
+    .meta-value { color: #e8ebef; font-weight: 500; text-align: right; }
 
     .divider {
       border: none;
-      border-top: 1px solid var(--divider-color);
+      border-top: 1px solid rgba(255,255,255,.08);
       margin: 10px 0;
     }
 
@@ -118,7 +126,7 @@ class GrainfatherBrewSessionCard extends LitElement {
       font-size: 0.68rem;
       text-transform: uppercase;
       letter-spacing: 0.6px;
-      color: var(--secondary-text-color);
+      color: #8fa0b4;
       margin-bottom: 6px;
     }
 
@@ -128,13 +136,21 @@ class GrainfatherBrewSessionCard extends LitElement {
       align-items: center;
       font-size: 0.8rem;
       padding: 4px 0;
-      border-bottom: 1px solid var(--divider-color);
+      border-bottom: 1px solid rgba(255,255,255,.08);
       gap: 12px;
     }
 
+    .step-row.current {
+      background: rgba(217, 196, 74, 0.12);
+      border-radius: 6px;
+      padding: 6px 8px;
+      margin: 2px -8px;
+      border-bottom-color: transparent;
+    }
+
     .step-row:last-child { border-bottom: none; }
-    .step-name { color: var(--primary-text-color); font-weight: 500; }
-    .step-meta { color: var(--secondary-text-color); font-size: 0.75rem; text-align: right; }
+    .step-name { color: #e8ebef; font-weight: 500; }
+    .step-meta { color: #8fa0b4; font-size: 0.75rem; text-align: right; }
 
     .error {
       padding: 16px;
@@ -165,14 +181,13 @@ class GrainfatherBrewSessionCard extends LitElement {
 
   setConfig(config) {
     this._config = {
-      density_unit: 'sg',
+      density_unit: 'default',
       show_image: true,
       show_status_dates: true,
       show_fermentation_steps: true,
       show_batch_variant_name: true,
       ...(config || {}),
     };
-    this._config.density_unit = _normalizeDensityUnit(this._config.density_unit);
   }
 
   set config(config) {
@@ -196,7 +211,7 @@ class GrainfatherBrewSessionCard extends LitElement {
 
     return {
       entity: fallbackEntity,
-      density_unit: 'sg',
+      density_unit: 'default',
       show_image: true,
       show_status_dates: true,
       show_fermentation_steps: true,
@@ -223,11 +238,12 @@ class GrainfatherBrewSessionCard extends LitElement {
         },
         {
           name: 'density_unit',
-          default: 'sg',
+          default: 'default',
           selector: {
             select: {
               mode: 'dropdown',
               options: [
+                { value: 'default', label: 'Integration default' },
                 { value: 'sg', label: 'SG' },
                 { value: 'plato', label: 'Plato' },
                 { value: 'brix', label: 'Brix' },
@@ -291,7 +307,7 @@ class GrainfatherBrewSessionCard extends LitElement {
           return 'Display the recipe image banner.';
         }
         if (schema.name === 'density_unit') {
-          return 'Display gravity values as SG, Plato, or Brix.';
+          return 'Display gravity values as Integration default, SG, Plato, or Brix.';
         }
         if (schema.name === 'show_status_dates') {
           return 'Display condition and fermentation start dates.';
@@ -313,9 +329,30 @@ class GrainfatherBrewSessionCard extends LitElement {
       const hass = _resolveHass();
       if (hass) {
         this.hass = hass;
+        this._requestFermentationRefresh();
         this._refreshTick += 1;
       }
     }, 10000);
+  }
+
+  _requestFermentationRefresh() {
+    const entityId = this._config?.entity;
+    if (!entityId || !this.hass) return;
+
+    const ids = [entityId];
+    if (entityId.endsWith('_batch_number')) {
+      const base = entityId.slice(0, -'_batch_number'.length);
+      for (const suffix of ['abv', 'original_gravity', 'final_gravity', 'style', 'batch_variant_name']) {
+        const relatedId = `${base}_${suffix}`;
+        if (this.hass.states[relatedId]) {
+          ids.push(relatedId);
+        }
+      }
+    }
+
+    this.hass.callService('homeassistant', 'update_entity', {
+      entity_id: ids,
+    }).catch((e) => console.warn('Fermentation refresh error:', e));
   }
 
   _related(suffix) {
@@ -370,12 +407,14 @@ class GrainfatherBrewSessionCard extends LitElement {
     const conditionDate = attrs.condition_date ? _formatDate(attrs.condition_date) : null;
     const fermStart = attrs.fermentation_start_date ? _formatDate(attrs.fermentation_start_date) : null;
     const steps = Array.isArray(attrs.fermentation_steps) ? attrs.fermentation_steps : [];
+    const currentStepIndex = _computeCurrentFermentationStepIndex(steps, attrs.fermentation_start_date);
+    const isFermenting = String(status).toLowerCase() === 'fermenting';
 
     const showImage = this._config?.show_image !== false;
     const showStatusDates = this._config?.show_status_dates !== false;
     const showFermentationSteps = this._config?.show_fermentation_steps !== false;
     const showBatchVariantName = this._config?.show_batch_variant_name !== false;
-    const densityUnit = _normalizeDensityUnit(this._config?.density_unit);
+    const densityUnit = _resolveDensityUnit(this._config?.density_unit, attrs);
 
     const abvRaw = this._stateValue('abv');
     const abv = abvRaw !== '—' ? `${abvRaw} %vol` : '—';
@@ -463,9 +502,9 @@ class GrainfatherBrewSessionCard extends LitElement {
             ? html`
                 <hr class="divider" />
                 <div class="section-title">Fermentation steps</div>
-                ${steps.map((step) => html`
-                  <div class="step-row">
-                    <span class="step-name">${step.name || `Step ${(step.index ?? 0) + 1}`}</span>
+                ${steps.map((step, index) => html`
+                  <div class=${`step-row ${isFermenting && index === currentStepIndex ? 'current' : ''}`}>
+                    <span class="step-name">${step.name || `Step ${index + 1}`}</span>
                     <span class="step-meta">
                       ${_stepMeta(step)}
                     </span>
@@ -531,6 +570,16 @@ function _normalizeDensityUnit(unit) {
   return 'sg';
 }
 
+function _resolveDensityUnit(configuredUnit, attrs) {
+  const explicit = String(configuredUnit || '').toLowerCase();
+  if (explicit === 'sg' || explicit === 'plato' || explicit === 'brix') {
+    return explicit;
+  }
+
+  const fromIntegration = String(attrs?.default_density_unit || 'sg').toLowerCase();
+  return _normalizeDensityUnit(fromIntegration);
+}
+
 function _convertSgToPlato(sg) {
   return -616.868 + (1111.14 * sg) - (630.272 * sg * sg) + (135.997 * sg * sg * sg);
 }
@@ -545,12 +594,42 @@ function _stepMeta(step) {
     parts.push(`${step.temperature} °C`);
   }
   if (step.duration_minutes != null) {
-    parts.push(`${Math.round(step.duration_minutes / 60)} h`);
+    parts.push(_formatDurationMinutes(step.duration_minutes));
   }
   if (step.is_ramp_step) {
     parts.push('ramp');
   }
   return parts.join(' · ');
+}
+
+function _formatDurationMinutes(minutes) {
+  const totalMinutes = Number(minutes);
+  if (!Number.isFinite(totalMinutes)) return '—';
+  const rounded = Math.max(0, Math.round(totalMinutes));
+  const days = Math.floor(rounded / 1440);
+  const hours = Math.floor((rounded % 1440) / 60);
+  return `${days}d ${hours}h`;
+}
+
+function _computeCurrentFermentationStepIndex(steps, fermentationStartDate) {
+  if (!Array.isArray(steps) || steps.length === 0 || !fermentationStartDate) return -1;
+
+  const start = new Date(fermentationStartDate);
+  if (Number.isNaN(start.getTime())) return -1;
+
+  const elapsedMinutes = (Date.now() - start.getTime()) / 60000;
+  let cursor = 0;
+
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i] || {};
+    const duration = Number(step.duration_minutes ?? step.time ?? 0);
+    cursor += Number.isFinite(duration) ? duration : 0;
+    if (elapsedMinutes < cursor || i === steps.length - 1) {
+      return i;
+    }
+  }
+
+  return -1;
 }
 
 function _resolveHass() {
@@ -569,44 +648,15 @@ function _resolveHass() {
   return null;
 }
 
-if (!customElements.get('grainfather-brew-session-card')) {
-  customElements.define('grainfather-brew-session-card', GrainfatherBrewSessionCard);
-}
-
-if (!window.__grainfatherShowcaseCardLoading) {
-  window.__grainfatherShowcaseCardLoading = true;
-  const showcaseModuleUrl = new URL('./grainfather-brew-session-card-showcase.js', import.meta.url).toString();
-  import(showcaseModuleUrl).catch(() => {
-    // Keep the showcase type available even if module loading fails.
-    if (!customElements.get('grainfather-brew-session-card-showcase')) {
-      class GrainfatherBrewSessionCardShowcaseFallback extends GrainfatherBrewSessionCard {}
-      customElements.define(
-        'grainfather-brew-session-card-showcase',
-        GrainfatherBrewSessionCardShowcaseFallback,
-      );
-    }
-
-    window.customCards = window.customCards || [];
-    const hasShowcaseCard = window.customCards.some(
-      (card) => card && card.type === 'grainfather-brew-session-card-showcase',
-    );
-    if (!hasShowcaseCard) {
-      window.customCards.push({
-        type: 'grainfather-brew-session-card-showcase',
-        name: 'Grainfather Brew Session Showcase',
-        description: 'Showcase fallback layout for a Grainfather brew session.',
-        preview: false,
-        configurable: true,
-      });
-    }
-  });
+if (!customElements.get('grainfather-brew-session-card-detailed')) {
+  customElements.define('grainfather-brew-session-card-detailed', GrainfatherBrewSessionCard);
 }
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: 'grainfather-brew-session-card',
-  name: 'Grainfather Brew Session',
-  description: 'Shows basic information for a Grainfather brew session.',
+  type: 'grainfather-brew-session-card-detailed',
+  name: 'Grainfather Brew Session Detailed',
+  description: 'Detailed dark layout for a Grainfather brew session.',
   preview: false,
   configurable: true,
 });

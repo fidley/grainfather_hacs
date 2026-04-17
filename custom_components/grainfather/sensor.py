@@ -24,9 +24,12 @@ from .api import (
     brew_session_unique_fragment,
 )
 from .const import BREW_SESSION_STATUS_NAME_BY_CODE, DOMAIN
+from .const import CONF_DEFAULT_DENSITY_UNIT, DEFAULT_DENSITY_UNIT
 from .coordinator import GrainfatherDataUpdateCoordinator
 
-_MAX_EXPOSED_HISTORY_POINTS = 500
+_MAX_EXPOSED_BATCH_HISTORY_POINTS = 20
+_MAX_EXPOSED_DEVICE_HISTORY_POINTS = 5
+_MAX_EXPOSED_NOTES_CHARS = 400
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -85,19 +88,120 @@ SESSION_SENSORS: tuple[GrainfatherSessionSensorDescription, ...] = (
 )
 
 
-def _serialize_history_points(points: tuple[GrainfatherHistoryPoint, ...]) -> list[dict[str, Any]]:
+def _serialize_history_points(
+    points: tuple[GrainfatherHistoryPoint, ...],
+    max_points: int,
+) -> list[dict[str, Any]]:
     # Keep attributes reasonably small for Home Assistant state storage.
-    recent_points = points[-_MAX_EXPOSED_HISTORY_POINTS:]
+    recent_points = points[-max_points:]
     return [
         {
             "timestamp": point.timestamp,
             "temperature": point.temperature,
             "specific_gravity": point.specific_gravity,
-            "device_id": point.device_id,
-            "brew_session_id": point.brew_session_id,
         }
         for point in recent_points
     ]
+
+
+def _truncate_text(value: str | None, max_chars: int) -> str | None:
+    if value is None:
+        return None
+    if len(value) <= max_chars:
+        return value
+    return f"{value[:max_chars]}..."
+
+
+def _last_history_value(
+    points: tuple[GrainfatherHistoryPoint, ...],
+    attr_name: str,
+) -> float | None:
+    for point in reversed(points):
+        value = getattr(point, attr_name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def _gravity_fallback(
+    device: GrainfatherFermentationDevice,
+    snapshot: GrainfatherSnapshot,
+) -> float | None:
+    """Fallback chain for gravity: linked session final_gravity → linked devices."""
+    if device.last_specific_gravity is not None:
+        return device.last_specific_gravity
+
+    history = snapshot.fermentation_history_by_device_id.get(
+        device.device_id or -1,
+        tuple(),
+    )
+    history_gravity = _last_history_value(history, "specific_gravity")
+    if history_gravity is not None:
+        return history_gravity
+
+    if device.linked_brew_session_id is not None:
+        linked_session = next(
+            (
+                s
+                for s in snapshot.brew_sessions
+                if str(s.batch_id) == str(device.linked_brew_session_id)
+            ),
+            None,
+        )
+        if linked_session is not None and linked_session.final_gravity is not None:
+            return linked_session.final_gravity
+
+        other_device_gravity = next(
+            (
+                d.last_specific_gravity
+                for d in snapshot.fermentation_devices
+                if d.device_id != device.device_id
+                and str(d.linked_brew_session_id) == str(device.linked_brew_session_id)
+                and d.last_specific_gravity is not None
+            ),
+            None,
+        )
+        if other_device_gravity is not None:
+            return other_device_gravity
+
+    return None
+
+
+def _get_collaborating_devices(
+    device: GrainfatherFermentationDevice,
+    snapshot: GrainfatherSnapshot,
+) -> list[dict[str, Any]]:
+    """Find other fermentation devices for the same session that provide data."""
+    collaborators = []
+    if device.linked_brew_session_id is None:
+        return collaborators
+
+    for other in snapshot.fermentation_devices:
+        if (
+            other.device_id == device.device_id
+            or str(other.linked_brew_session_id) != str(device.linked_brew_session_id)
+        ):
+            continue
+
+        has_data = (
+            other.last_temperature is not None or other.last_specific_gravity is not None
+        )
+        if not has_data:
+            history = snapshot.fermentation_history_by_device_id.get(
+                other.device_id or -1,
+                tuple(),
+            )
+            has_data = len(history) > 0
+
+        if has_data:
+            collaborators.append(
+                {
+                    "device_id": other.device_id,
+                    "name": other.name or f"Fermentation Device {other.device_id}",
+                }
+            )
+
+    return collaborators
 
 
 def _session_batch_number_attributes(
@@ -128,7 +232,7 @@ def _session_batch_number_attributes(
         "fermentation_start_date": session.fermentation_start_date,
         "created_at": session.created_at,
         "recipe_image_url": session.recipe_image_url,
-        "notes": session.notes,
+        "notes": _truncate_text(session.notes, _MAX_EXPOSED_NOTES_CHARS),
         "equipment_name": session.equipment_name,
         "fermentation_device_ids": list(session.fermentation_device_ids),
         "fermentation_steps": [
@@ -141,7 +245,7 @@ def _session_batch_number_attributes(
             }
             for i, step in enumerate(session.fermentation_steps)
         ],
-        "history_points": _serialize_history_points(history),
+        "history_points": _serialize_history_points(history, _MAX_EXPOSED_BATCH_HISTORY_POINTS),
         "history_points_count": len(history),
     }
 
@@ -297,7 +401,14 @@ class GrainfatherSessionSensor(
         session = self._session
         if session is None or self.entity_description.attributes_fn is None:
             return None
-        return self.entity_description.attributes_fn(session, self.coordinator.data)
+        attrs = self.entity_description.attributes_fn(session, self.coordinator.data)
+        if attrs is None:
+            return None
+        attrs["default_density_unit"] = self.coordinator.entry.options.get(
+            CONF_DEFAULT_DENSITY_UNIT,
+            DEFAULT_DENSITY_UNIT,
+        )
+        return attrs
 
     async def async_added_to_hass(self) -> None:
         """Write updated state whenever coordinator data changes."""
@@ -356,7 +467,15 @@ class GrainfatherFermDeviceTemperatureSensor(
     @property
     def native_value(self) -> Any:
         device = self._device
-        return device.last_temperature if device else None
+        if device is None:
+            return None
+        if device.last_temperature is not None:
+            return device.last_temperature
+        history = self.coordinator.data.fermentation_history_by_device_id.get(
+            device.device_id or -1,
+            tuple(),
+        )
+        return _last_history_value(history, "temperature")
 
     @property
     def device_info(self) -> DeviceInfo | None:
@@ -374,6 +493,7 @@ class GrainfatherFermDeviceTemperatureSensor(
             device.device_id or -1,
             tuple(),
         )
+        collaborators = _get_collaborating_devices(device, self.coordinator.data)
         return {
             "grainfather_entity_type": "fermentation_device",
             "device_id": device.device_id,
@@ -382,7 +502,12 @@ class GrainfatherFermDeviceTemperatureSensor(
             "linked_brew_session_id": device.linked_brew_session_id,
             "linked_brew_session_name": device.linked_brew_session_name,
             "is_controller_linked": device.is_controller_linked,
-            "history_points": _serialize_history_points(history),
+            "collaborating_devices": collaborators,
+            "default_density_unit": self.coordinator.entry.options.get(
+                CONF_DEFAULT_DENSITY_UNIT,
+                DEFAULT_DENSITY_UNIT,
+            ),
+            "history_points": _serialize_history_points(history, _MAX_EXPOSED_DEVICE_HISTORY_POINTS),
             "history_points_count": len(history),
         }
 
@@ -419,7 +544,9 @@ class GrainfatherFermDeviceGravitySensor(
     @property
     def native_value(self) -> Any:
         device = self._device
-        return device.last_specific_gravity if device else None
+        if device is None:
+            return None
+        return _gravity_fallback(device, self.coordinator.data)
 
     @property
     def device_info(self) -> DeviceInfo | None:
@@ -437,12 +564,18 @@ class GrainfatherFermDeviceGravitySensor(
             device.device_id or -1,
             tuple(),
         )
+        collaborators = _get_collaborating_devices(device, self.coordinator.data)
         return {
             "device_id": device.device_id,
             "last_heard": device.last_heard,
             "linked_brew_session_id": device.linked_brew_session_id,
             "linked_brew_session_name": device.linked_brew_session_name,
-            "history_points": _serialize_history_points(history),
+            "collaborating_devices": collaborators,
+            "default_density_unit": self.coordinator.entry.options.get(
+                CONF_DEFAULT_DENSITY_UNIT,
+                DEFAULT_DENSITY_UNIT,
+            ),
+            "history_points": _serialize_history_points(history, _MAX_EXPOSED_DEVICE_HISTORY_POINTS),
             "history_points_count": len(history),
         }
 

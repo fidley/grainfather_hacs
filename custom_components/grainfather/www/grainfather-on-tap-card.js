@@ -26,7 +26,7 @@ class GrainfatherOnTapCard extends HTMLElement {
     super();
     this._hass = null;
     this._config = {
-      density_unit: 'sg',
+      density_unit: 'default',
       max_items: 12,
       show_on_tap: true,
       show_coming_soon: true,
@@ -51,7 +51,7 @@ class GrainfatherOnTapCard extends HTMLElement {
   setConfig(config) {
     try {
       const merged = Object.assign({
-        density_unit: 'sg',
+        density_unit: 'default',
         max_items: 12,
         show_on_tap: true,
         show_coming_soon: true,
@@ -67,7 +67,10 @@ class GrainfatherOnTapCard extends HTMLElement {
       merged.coming_soon_show_brewing = merged.coming_soon_show_brewing !== false;
       merged.coming_soon_show_fermenting = merged.coming_soon_show_fermenting !== false;
       merged.coming_soon_show_conditioning = merged.coming_soon_show_conditioning !== false;
-      merged.density_unit = _normalizeDensityUnit(merged.density_unit);
+      const normalizedConfiguredUnit = String(merged.density_unit || 'default').toLowerCase();
+      merged.density_unit = ['default', 'sg', 'plato', 'brix'].includes(normalizedConfiguredUnit)
+        ? normalizedConfiguredUnit
+        : 'default';
 
       if (merged.max_items !== undefined) {
         const n = Number(merged.max_items);
@@ -86,7 +89,7 @@ class GrainfatherOnTapCard extends HTMLElement {
 
   static getStubConfig() {
     return {
-      density_unit: 'sg',
+      density_unit: 'default',
       max_items: 12,
       show_on_tap: true,
       show_coming_soon: true,
@@ -103,11 +106,12 @@ class GrainfatherOnTapCard extends HTMLElement {
         {
           name: 'density_unit',
           required: false,
-          default: 'sg',
+          default: 'default',
           selector: {
             select: {
               mode: 'dropdown',
               options: [
+                { value: 'default', label: 'Integration default' },
                 { value: 'sg', label: 'SG' },
                 { value: 'plato', label: 'Plato' },
                 { value: 'brix', label: 'Brix' },
@@ -188,7 +192,7 @@ class GrainfatherOnTapCard extends HTMLElement {
         return undefined;
       },
       computeHelper: (schema) => {
-        if (schema.name === 'density_unit') return 'Display gravity values as SG, Plato, or Brix.';
+        if (schema.name === 'density_unit') return 'Display gravity values as Integration default, SG, Plato, or Brix.';
         if (schema.name === 'show_on_tap') return 'Display beers with serving status.';
         if (schema.name === 'show_coming_soon') return 'Display beers with brewing and fermenting statuses.';
         if (schema.name === 'show_notes') return 'Display notes from brew session payload when available.';
@@ -294,7 +298,6 @@ class GrainfatherOnTapCard extends HTMLElement {
         return [];
       }
 
-      const densityUnit = _normalizeDensityUnit(this._config && this._config.density_unit);
       const allowedStatuses = new Set((statuses || []).map((value) => String(value).toLowerCase()));
       const rows = [];
       const states = this._hass.states;
@@ -307,6 +310,8 @@ class GrainfatherOnTapCard extends HTMLElement {
         
         const attrs = stateObj && stateObj.attributes ? stateObj.attributes : {};
         if (attrs.grainfather_entity_type !== 'brew_session') continue;
+
+        const densityUnit = _resolveDensityUnit(this._config && this._config.density_unit, attrs);
 
         const status = String(attrs.status || '').toLowerCase();
         if (!allowedStatuses.has(status)) continue;
@@ -556,7 +561,31 @@ class GrainfatherOnTapCard extends HTMLElement {
           .chalk-orange { color: #ffbf8a; }
           @media (max-width: 520px) {
             .board { padding: 12px 12px 13px; }
-            .line { gap: 6px; }
+            .line {
+              gap: 6px;
+              min-height: 0;
+              grid-template-columns: auto 1fr;
+              grid-template-areas:
+                'no style'
+                '. abv';
+              align-items: start;
+            }
+            .no {
+              grid-area: no;
+            }
+            .style {
+              grid-area: style;
+              white-space: normal;
+              overflow: visible;
+              text-overflow: unset;
+              word-break: break-word;
+            }
+            .abv {
+              grid-area: abv;
+              white-space: normal;
+              justify-self: start;
+              margin-top: 1px;
+            }
           }
         </style>
         <ha-card>
@@ -609,6 +638,16 @@ function _normalizeDensityUnit(unit) {
     return normalized;
   }
   return 'sg';
+}
+
+function _resolveDensityUnit(configuredUnit, attrs) {
+  const explicit = String(configuredUnit || '').toLowerCase();
+  if (explicit === 'sg' || explicit === 'plato' || explicit === 'brix') {
+    return explicit;
+  }
+
+  const fromIntegration = String(attrs && attrs.default_density_unit ? attrs.default_density_unit : 'sg').toLowerCase();
+  return _normalizeDensityUnit(fromIntegration);
 }
 
 function _convertSgToPlato(sg) {

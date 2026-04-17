@@ -63,7 +63,7 @@ class GrainfatherBrewCollectionCard extends LitElement {
 
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+      grid-template-columns: var(--gf-grid-template, repeat(auto-fill, minmax(var(--gf-card-min-width, 500px), 1fr)));
       gap: 16px;
       padding: 16px;
     }
@@ -84,15 +84,9 @@ class GrainfatherBrewCollectionCard extends LitElement {
       font-size: 0.9rem;
     }
 
-    @media (max-width: 1200px) {
-      .cards-grid {
-        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-      }
-    }
-
     @media (max-width: 768px) {
       .cards-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr !important;
         gap: 12px;
         padding: 12px;
       }
@@ -132,13 +126,15 @@ class GrainfatherBrewCollectionCard extends LitElement {
     this._config = {
       title: 'Brew Sessions',
       statuses: DEFAULT_STATUSES,
-      card_type: 'showcase',
-      density_unit: 'sg',
+      card_type: 'brew-session-detailed',
+      density_unit: 'default',
       deduplicate: false,
       group_by_status: false,
       show_status_dates: true,
       show_fermentation_steps: true,
       show_batch_variant_name: true,
+      card_min_width: 500,
+      cards_per_row: 0,
       sort_by: 'batch_number',
       sort_direction: 'desc',
       hidden_batch_numbers: '',
@@ -149,12 +145,12 @@ class GrainfatherBrewCollectionCard extends LitElement {
       this._config.statuses = DEFAULT_STATUSES;
     }
 
-    if (!['showcase', 'brew-session-v2'].includes(this._config.card_type)) {
-      this._config.card_type = 'showcase';
+    if (!['brew-session-detailed', 'brew-session-compact'].includes(this._config.card_type)) {
+      this._config.card_type = 'brew-session-detailed';
     }
 
-    if (!['sg', 'plato', 'brix'].includes(this._config.density_unit)) {
-      this._config.density_unit = 'sg';
+    if (!['default', 'sg', 'plato', 'brix'].includes(this._config.density_unit)) {
+      this._config.density_unit = 'default';
     }
 
     if (!['batch_number', 'session_name', 'status'].includes(this._config.sort_by)) {
@@ -164,6 +160,16 @@ class GrainfatherBrewCollectionCard extends LitElement {
     if (!['asc', 'desc'].includes(this._config.sort_direction)) {
       this._config.sort_direction = 'desc';
     }
+
+    const parsedCardMinWidth = Number(this._config.card_min_width);
+    this._config.card_min_width = Number.isFinite(parsedCardMinWidth)
+      ? Math.min(900, Math.max(280, Math.round(parsedCardMinWidth)))
+      : 500;
+
+    const parsedCardsPerRow = Number(this._config.cards_per_row);
+    this._config.cards_per_row = Number.isFinite(parsedCardsPerRow)
+      ? Math.min(6, Math.max(0, Math.round(parsedCardsPerRow)))
+      : 0;
 
     if (Array.isArray(this._config.hidden_batch_numbers)) {
       this._config.hidden_batch_numbers = this._config.hidden_batch_numbers.join('\n');
@@ -184,14 +190,16 @@ class GrainfatherBrewCollectionCard extends LitElement {
     const statuses = ['fermenting', 'conditioning', 'serving', 'brewing', 'planning', 'completed'];
     return {
       title: 'Brew Sessions',
-      card_type: 'showcase',
+      card_type: 'brew-session-detailed',
       statuses: statuses,
-      density_unit: 'sg',
+      density_unit: 'default',
       deduplicate: false,
       group_by_status: false,
       show_status_dates: true,
       show_fermentation_steps: true,
       show_batch_variant_name: true,
+      card_min_width: 500,
+      cards_per_row: 0,
       sort_by: 'batch_number',
       sort_direction: 'desc',
       hidden_batch_numbers: '',
@@ -211,24 +219,25 @@ class GrainfatherBrewCollectionCard extends LitElement {
         },
         {
           name: 'card_type',
-          default: 'showcase',
+          default: 'brew-session-detailed',
           selector: {
             select: {
               mode: 'dropdown',
               options: [
-                { value: 'showcase', label: 'Showcase' },
-                { value: 'brew-session-v2', label: 'Brew Session V2' },
+                { value: 'brew-session-detailed', label: 'Brew Session Detailed' },
+                { value: 'brew-session-compact', label: 'Brew Session Compact' },
               ],
             },
           },
         },
         {
           name: 'density_unit',
-          default: 'sg',
+          default: 'default',
           selector: {
             select: {
               mode: 'dropdown',
               options: [
+                { value: 'default', label: 'Integration default' },
                 { value: 'sg', label: 'SG' },
                 { value: 'plato', label: 'Plato' },
                 { value: 'brix', label: 'Brix' },
@@ -266,6 +275,30 @@ class GrainfatherBrewCollectionCard extends LitElement {
           default: true,
           selector: {
             boolean: {},
+          },
+        },
+        {
+          name: 'cards_per_row',
+          default: 0,
+          selector: {
+            number: {
+              min: 0,
+              max: 6,
+              step: 1,
+              mode: 'box',
+            },
+          },
+        },
+        {
+          name: 'card_min_width',
+          default: 500,
+          selector: {
+            number: {
+              min: 280,
+              max: 900,
+              step: 10,
+              mode: 'box',
+            },
           },
         },
         {
@@ -328,6 +361,8 @@ class GrainfatherBrewCollectionCard extends LitElement {
           show_status_dates: 'Show status dates',
           show_fermentation_steps: 'Show fermentation steps',
           show_batch_variant_name: 'Show batch variant',
+          cards_per_row: 'Cards per row (0 = auto)',
+          card_min_width: 'Card minimum width (px)',
           sort_by: 'Sort cards by',
           sort_direction: 'Sort direction',
           hidden_batch_numbers: 'Hide batch numbers (one per line)',
@@ -340,11 +375,13 @@ class GrainfatherBrewCollectionCard extends LitElement {
         const helpers = {
           title: 'Display name for this collection',
           card_type: 'Choose which card layout to use for each session',
-          density_unit: 'Display gravity values on rendered cards as SG, Plato, or Brix.',
+          density_unit: 'Display gravity values on rendered cards as Integration default, SG, Plato, or Brix.',
           statuses: 'Show only sessions with these statuses',
           show_status_dates: 'Enable or hide condition and fermentation start dates on each rendered card.',
           show_fermentation_steps: 'Enable or hide the fermentation steps section on each rendered card.',
           show_batch_variant_name: 'Enable or hide the batch variant row on each rendered card.',
+          cards_per_row: 'Set fixed number of cards in each row. Use 0 to auto-fit based on card width.',
+          card_min_width: 'Used when cards per row is 0. Sets the minimum width of each card before wrapping.',
           sort_by: 'Choose how cards are sorted within the list or inside each status group.',
           sort_direction: 'Choose ascending or descending order for the selected sort field.',
           hidden_batch_numbers: 'Enter batch numbers to hide (e.g., 272, 273) - one per line. Automatically discovers all Grainfather sessions.',
@@ -484,34 +521,47 @@ class GrainfatherBrewCollectionCard extends LitElement {
 
   _renderCardForSession(session) {
     const { entityId } = session;
-    const cardType = this._config.card_type || 'showcase';
+    const cardType = this._config.card_type || 'brew-session-detailed';
 
     const config = {
       entity: entityId,
-      density_unit: this._config.density_unit || 'sg',
+      density_unit: this._config.density_unit || 'default',
       show_image: true,
       show_status_dates: this._config.show_status_dates !== false,
       show_fermentation_steps: this._config.show_fermentation_steps !== false,
       show_batch_variant_name: this._config.show_batch_variant_name !== false,
     };
 
-    if (cardType === 'showcase') {
+    if (cardType === 'brew-session-detailed') {
       return html`
-        <grainfather-brew-session-card-showcase
+        <grainfather-brew-session-card-detailed
           .hass=${this.hass}
           .config=${config}
-        ></grainfather-brew-session-card-showcase>
+        ></grainfather-brew-session-card-detailed>
       `;
-    } else if (cardType === 'brew-session-v2') {
+    } else if (cardType === 'brew-session-compact') {
       return html`
-        <grainfather-brew-session-card
+        <grainfather-brew-session-card-compact
           .hass=${this.hass}
           .config=${config}
-        ></grainfather-brew-session-card>
+        ></grainfather-brew-session-card-compact>
       `;
     }
 
     return nothing;
+  }
+
+  _cardsGridStyle() {
+    const cardsPerRow = Number(this._config.cards_per_row || 0);
+    if (cardsPerRow > 0) {
+      return `--gf-grid-template: repeat(${cardsPerRow}, minmax(0, 1fr));`;
+    }
+
+    const cardMinWidth = Number(this._config.card_min_width || 500);
+    const safeMinWidth = Number.isFinite(cardMinWidth)
+      ? Math.min(900, Math.max(280, Math.round(cardMinWidth)))
+      : 500;
+    return `--gf-card-min-width: ${safeMinWidth}px; --gf-grid-template: repeat(auto-fill, minmax(${safeMinWidth}px, 1fr));`;
   }
 
   render() {
@@ -545,7 +595,7 @@ class GrainfatherBrewCollectionCard extends LitElement {
                   ([status, statusSessions]) => html`
                     <div class="status-group">
                       <div class="status-group-header">${status}</div>
-                      <div class="cards-grid">
+                      <div class="cards-grid" style=${this._cardsGridStyle()}>
                         ${statusSessions.map((session) => this._renderCardForSession(session))}
                       </div>
                     </div>
@@ -553,7 +603,7 @@ class GrainfatherBrewCollectionCard extends LitElement {
                 )}
               `
             : html`
-                <div class="cards-grid">
+                <div class="cards-grid" style=${this._cardsGridStyle()}>
                   ${sessions.map((session) => this._renderCardForSession(session))}
                 </div>
               `}

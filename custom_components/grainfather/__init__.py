@@ -23,10 +23,6 @@ _CARD_V3_URL = "/grainfather/grainfather-brew-session-card-v3.js"
 _CARD_V3_PATH = Path(__file__).parent / "www" / "grainfather-brew-session-card-v3.js"
 _ON_TAP_CARD_URL = "/grainfather/grainfather-on-tap-card.js"
 _ON_TAP_CARD_PATH = Path(__file__).parent / "www" / "grainfather-on-tap-card.js"
-_SHOWCASE_CARD_URL = "/grainfather/grainfather-brew-session-card-showcase.js"
-_SHOWCASE_CARD_PATH = (
-    Path(__file__).parent / "www" / "grainfather-brew-session-card-showcase.js"
-)
 _COLLECTION_CARD_URL = "/grainfather/grainfather-brew-collection-card.js"
 _COLLECTION_CARD_PATH = (
     Path(__file__).parent / "www" / "grainfather-brew-collection-card.js"
@@ -40,8 +36,6 @@ _CARD_FRONTEND_KEY = f"{__name__}_card_frontend_registered"
 
 from .api import GrainfatherApiClient
 from .const import (
-    CONF_DELTA_MINUTES,
-    CONF_DELTA_TEMPERATURE,
     CONF_INCLUDE_COMPLETED_SESSIONS,
     SERVICE_ADJUST_CURRENT_STEP_DURATION,
     SERVICE_ADJUST_CURRENT_STEP_TEMPERATURE,
@@ -136,7 +130,7 @@ ADJUST_CURRENT_STEP_TEMPERATURE_SCHEMA = vol.Schema(
         vol.Optional(CONF_ENTRY_ID): cv.string,
         vol.Optional(CONF_BREW_SESSION_ID): vol.Coerce(int),
         vol.Optional(CONF_RECIPE_ID): vol.Coerce(int),
-        vol.Required(CONF_DELTA_TEMPERATURE): vol.Coerce(float),
+        vol.Required(CONF_TEMPERATURE): vol.Coerce(float),
     }
 )
 
@@ -145,7 +139,7 @@ ADJUST_CURRENT_STEP_DURATION_SCHEMA = vol.Schema(
         vol.Optional(CONF_ENTRY_ID): cv.string,
         vol.Optional(CONF_BREW_SESSION_ID): vol.Coerce(int),
         vol.Optional(CONF_RECIPE_ID): vol.Coerce(int),
-        vol.Required(CONF_DELTA_MINUTES): vol.Coerce(int),
+        vol.Required(CONF_DURATION_MINUTES): vol.Coerce(int),
     }
 )
 
@@ -225,11 +219,6 @@ async def _async_register_card_resources(hass: HomeAssistant) -> None:
                 cache_headers=False,
             ),
             StaticPathConfig(
-                url_path=_SHOWCASE_CARD_URL,
-                path=str(_SHOWCASE_CARD_PATH),
-                cache_headers=False,
-            ),
-            StaticPathConfig(
                 url_path=_COLLECTION_CARD_URL,
                 path=str(_COLLECTION_CARD_PATH),
                 cache_headers=False,
@@ -245,7 +234,6 @@ async def _async_register_card_resources(hass: HomeAssistant) -> None:
         add_extra_js_url(hass, _CARD_URL)
         add_extra_js_url(hass, _CARD_V3_URL)
         add_extra_js_url(hass, _ON_TAP_CARD_URL)
-        add_extra_js_url(hass, _SHOWCASE_CARD_URL)
         add_extra_js_url(hass, _COLLECTION_CARD_URL)
         add_extra_js_url(hass, _FERM_DEVICE_CARD_URL)
         hass.data[_CARD_FRONTEND_KEY] = True
@@ -400,11 +388,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
                     "Cannot resolve recipe_id or batch_id for this session"
                 )
 
-            new_temperature = round(
-                float(current_step.temperature)
-                + float(service_call.data[CONF_DELTA_TEMPERATURE]),
-                2,
-            )
+            new_temperature = round(float(service_call.data[CONF_TEMPERATURE]), 2)
             await coordinator.api.async_set_fermentation_step_duration(
                 session.recipe_id,
                 int(session.batch_id),
@@ -441,8 +425,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
                     "Cannot resolve recipe_id or batch_id for this session"
                 )
 
-            delta = int(service_call.data[CONF_DELTA_MINUTES])
-            new_duration = max(1, int(current_step.duration) + delta)
+            new_duration = max(1, int(service_call.data[CONF_DURATION_MINUTES]))
 
             await coordinator.api.async_set_fermentation_step_duration(
                 session.recipe_id,

@@ -114,8 +114,8 @@ clear_fermentation_step_finish_temperature:
       example: 0
 
 adjust_current_step_temperature:
-  name: Adjust current fermentation step temperature
-  description: Increase or decrease target temperature of the currently active fermentation step.
+  name: Set current fermentation step temperature
+  description: Set the target temperature of the currently active fermentation step to an absolute value.
   fields:
     entry_id:
       name: Entry ID
@@ -129,15 +129,15 @@ adjust_current_step_temperature:
       name: Recipe ID
       description: Optional recipe ID for the targeted brew session.
       example: 1275839
-    delta_temperature:
-      name: Temperature delta
-      description: Temperature change in Celsius to apply to the active step (e.g. 0.5 or -0.5).
+    temperature:
+      name: Target temperature
+      description: Absolute target temperature in Celsius to set for the active step.
       required: true
-      example: 0.5
+      example: 20.5
 
 adjust_current_step_duration:
-  name: Adjust current fermentation step duration
-  description: Increase or decrease duration (minutes) of the currently active fermentation step.
+  name: Set current fermentation step duration
+  description: Set the total duration (minutes) of the currently active fermentation step to an absolute value.
   fields:
     entry_id:
       name: Entry ID
@@ -151,11 +151,11 @@ adjust_current_step_duration:
       name: Recipe ID
       description: Optional recipe ID for the targeted brew session.
       example: 1275839
-    delta_minutes:
-      name: Duration delta (minutes)
-      description: Duration change in minutes to apply to the active step (e.g. 720 or -720).
+    duration_minutes:
+      name: Total duration (minutes)
+      description: Absolute total step duration in minutes to set for the active step.
       required: true
-      example: 720
+      example: 4320
 
 advance_to_next_fermentation_step:
   name: Advance to next fermentation step

@@ -9,10 +9,12 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import GrainfatherApiClient, GrainfatherAuthenticationError, GrainfatherApiError
 from .const import (
+    CONF_DEFAULT_DENSITY_UNIT,
     CONF_EMAIL,
     CONF_INCLUDE_COMPLETED_SESSIONS,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
+    DEFAULT_DENSITY_UNIT,
     DEFAULT_INCLUDE_COMPLETED_SESSIONS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -81,6 +83,10 @@ class GrainfatherOptionsFlow(config_entries.OptionsFlow):
             CONF_INCLUDE_COMPLETED_SESSIONS,
             DEFAULT_INCLUDE_COMPLETED_SESSIONS,
         )
+        default_density_unit = self.config_entry.options.get(
+            CONF_DEFAULT_DENSITY_UNIT,
+            DEFAULT_DENSITY_UNIT,
+        )
 
         return self.async_show_form(
             step_id="init",
@@ -94,6 +100,10 @@ class GrainfatherOptionsFlow(config_entries.OptionsFlow):
                         CONF_INCLUDE_COMPLETED_SESSIONS,
                         default=include_completed,
                     ): bool,
+                    vol.Required(
+                        CONF_DEFAULT_DENSITY_UNIT,
+                        default=default_density_unit,
+                    ): vol.In(["sg", "plato", "brix"]),
                 }
             ),
         )

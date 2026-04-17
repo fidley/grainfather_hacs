@@ -72,6 +72,15 @@ function _normUnit(u) {
   const n = String(u || 'sg').toLowerCase();
   return n === 'plato' || n === 'brix' ? n : 'sg';
 }
+function _resolveDensityUnit(configuredUnit, attrs) {
+  const explicit = String(configuredUnit || '').toLowerCase();
+  if (explicit === 'sg' || explicit === 'plato' || explicit === 'brix') {
+    return explicit;
+  }
+
+  const fromIntegration = String(attrs?.default_density_unit || 'sg').toLowerCase();
+  return _normUnit(fromIntegration);
+}
 function _fmtGravity(raw, unit) {
   if (raw == null || raw === '' || raw === 'unavailable' || raw === 'unknown') return '—';
   const sg = parseFloat(raw);
@@ -231,6 +240,21 @@ function _fmtTimeLeft(minutes) {
   return `${days}d ${hours}h`;
 }
 
+function _fmtStepMeta(step) {
+  const parts = [];
+  if (step?.temperature != null && isFinite(Number(step.temperature))) {
+    parts.push(`${Number(step.temperature).toFixed(1)} °C`);
+  }
+  const duration = step?.duration_minutes ?? step?.time;
+  if (duration != null && isFinite(Number(duration))) {
+    parts.push(_fmtTimeLeft(duration));
+  }
+  if (step?.is_ramp_step) {
+    parts.push('ramp');
+  }
+  return parts.join(' · ');
+}
+
 // ---------------------------------------------------------------------------
 // SVG icons
 // ---------------------------------------------------------------------------
@@ -273,6 +297,7 @@ class GrainfatherFermentationDeviceCard extends LitElement {
     hass: { attribute: false },
     _config: { state: true },
     _tick: { state: true },
+    _optimistic: { state: true },
   };
 
   static styles = css`
@@ -393,6 +418,15 @@ class GrainfatherFermentationDeviceCard extends LitElement {
       color: #e8ebef;
     }
 
+    .stage-name-inline {
+      color: #c6ccd6;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-left: 6px;
+      letter-spacing: 0;
+      vertical-align: middle;
+    }
+
     .metric.stage-sub {
       padding-top: 6px;
     }
@@ -442,6 +476,55 @@ class GrainfatherFermentationDeviceCard extends LitElement {
       line-height: 1;
     }
 
+    .steps-section {
+      margin: 0 8px 8px;
+      padding: 8px 10px;
+      background: rgba(0,0,0,.20);
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+
+    .steps-title {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #8fa0b4;
+      margin-bottom: 6px;
+    }
+
+    .step-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      gap: 12px;
+    }
+
+    .step-row.current {
+      background: rgba(217, 196, 74, 0.12);
+      border-radius: 6px;
+      padding: 6px 8px;
+      margin: 2px -8px;
+      border-bottom-color: transparent;
+    }
+
+    .step-row:last-child {
+      border-bottom: none;
+    }
+
+    .step-name {
+      color: #e8ebef;
+      font-weight: 500;
+    }
+
+    .step-meta {
+      color: #8fa0b4;
+      font-size: 0.75rem;
+      text-align: right;
+    }
+
     /* no-session message */
     .no-session-strip {
       text-align: center;
@@ -449,6 +532,61 @@ class GrainfatherFermentationDeviceCard extends LitElement {
       font-size: 0.8rem;
       color: #586070;
       letter-spacing: .03em;
+    }
+
+    /* Action buttons */
+    /* Action buttons */
+    .actions-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 8px 10px 10px;
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+
+    .actions-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .actions-group-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #8fa0b4;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      width: 28px;
+      flex-shrink: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .actions-group-label svg { color: #8fa0b4; }
+
+    .action-btn {
+      padding: 4px 8px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 7px;
+      background: rgba(217, 196, 74, 0.1);
+      color: #d9c44a;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .action-btn.wide {
+      flex: 2;
+    }
+    .action-btn:hover {
+      background: rgba(217, 196, 74, 0.2);
+      border-color: rgba(217, 196, 74, 0.3);
+    }
+    .action-btn:active {
+      transform: scale(0.97);
     }
 
     .error {
@@ -463,6 +601,10 @@ class GrainfatherFermentationDeviceCard extends LitElement {
     this.hass = undefined;
     this._config = {};
     this._tick = 0;
+    this._optimistic = null;
+    this._lastRenderSnapshot = null;
+    this._pendingBySession = new Map();
+    this._flushTimers = new Map();
     this._timerId = null;
   }
 
@@ -475,19 +617,34 @@ class GrainfatherFermentationDeviceCard extends LitElement {
     super.disconnectedCallback();
     clearInterval(this._timerId);
     this._timerId = null;
+    for (const timerId of this._flushTimers.values()) {
+      clearTimeout(timerId);
+    }
+    this._flushTimers.clear();
   }
 
   _startTimer() {
     if (this._timerId !== null) return;
-    // Refresh every 60 s so "time left" counts down without waiting for HA polling
+    // Refresh every 30 s so time counters move smoothly and linked entities stay fresh.
     this._timerId = setInterval(() => {
+      this._requestFermentationRefresh();
       this._tick += 1;
-    }, 60000);
+    }, 30000);
+  }
+
+  _requestFermentationRefresh() {
+    const entityId = this._resolveTemperatureEntityId();
+    if (!entityId || !this.hass) return;
+    const attrs = this.hass.states[entityId]?.attributes || {};
+    const linkedSessionId = attrs.linked_brew_session_id;
+    const entityIds = this._getLinkedEntityIds(entityId, linkedSessionId);
+    this._refreshEntityList(entityIds);
   }
 
   setConfig(config) {
     this._config = {
-      density_unit: 'sg',
+      density_unit: 'default',
+      show_fermentation_steps: true,
       ...(config || {}),
     };
 
@@ -502,7 +659,10 @@ class GrainfatherFermentationDeviceCard extends LitElement {
   getCardSize() { return 2; }
 
   static getStubConfig(hass) {
-    return { density_unit: 'sg' };
+    return {
+      density_unit: 'default',
+      show_fermentation_steps: true,
+    };
   }
 
   static getConfigForm() {
@@ -543,16 +703,24 @@ class GrainfatherFermentationDeviceCard extends LitElement {
         },
         {
           name: 'density_unit',
-          default: 'sg',
+          default: 'default',
           selector: {
             select: {
               mode: 'dropdown',
               options: [
+                { value: 'default', label: 'Integration default' },
                 { value: 'sg',    label: 'SG' },
                 { value: 'plato', label: 'Plato (°P)' },
                 { value: 'brix',  label: 'Brix (°Bx)' },
               ],
             },
+          },
+        },
+        {
+          name: 'show_fermentation_steps',
+          default: true,
+          selector: {
+            boolean: {},
           },
         },
       ],
@@ -561,12 +729,15 @@ class GrainfatherFermentationDeviceCard extends LitElement {
         if (s.name === 'temperature_entity') return 'Optional: temperature sensor override';
         if (s.name === 'gravity_entity') return 'Optional: gravity sensor override';
         if (s.name === 'density_unit') return 'Density unit';
+        if (s.name === 'show_fermentation_steps') return 'Show fermentation steps';
         return undefined;
       },
       computeHelper: (s) => {
         if (s.name === 'device') return 'Required. Card resolves session/stage from this Grainfather device.';
         if (s.name === 'temperature_entity') return 'If set, current temperature is read from this entity.';
         if (s.name === 'gravity_entity') return 'If set, gravity is read from this entity (generic sensor; no dedicated gravity device class in HA).';
+        if (s.name === 'density_unit') return 'Display gravity values as Integration default, SG, Plato, or Brix.';
+        if (s.name === 'show_fermentation_steps') return 'Show or hide the fermentation steps section.';
         return undefined;
       },
       assertConfig: (config) => {
@@ -683,6 +854,166 @@ class GrainfatherFermentationDeviceCard extends LitElement {
     return null;
   }
 
+  _pushOptimisticUpdate(sessionId, patch) {
+    if (sessionId == null) return;
+
+    const now = Date.now();
+    const snapshot = this._lastRenderSnapshot;
+    const sameSession = this._optimistic && String(this._optimistic.sessionId) === String(sessionId);
+    const base = sameSession
+      ? this._optimistic
+      : {
+          sessionId,
+          temperatureDelta: 0,
+          durationDeltaMinutes: 0,
+          advanceSteps: 0,
+          baseStepIndex:
+            snapshot && String(snapshot.sessionId) === String(sessionId)
+              ? snapshot.stepIndex
+              : null,
+          baseTargetTemperature:
+            snapshot && String(snapshot.sessionId) === String(sessionId)
+              ? snapshot.targetTemperature
+              : null,
+          baseTotalMinutesRemaining:
+            snapshot && String(snapshot.sessionId) === String(sessionId)
+              ? snapshot.totalMinutesRemaining
+              : null,
+          expiresAt: now + 60000,
+        };
+
+    this._optimistic = {
+      ...base,
+      temperatureDelta: base.temperatureDelta + (patch.temperatureDelta || 0),
+      durationDeltaMinutes: base.durationDeltaMinutes + (patch.durationDeltaMinutes || 0),
+      advanceSteps: base.advanceSteps + (patch.advanceSteps || 0),
+      expiresAt: now + 60000,
+    };
+
+    this._tick += 1;
+  }
+
+  _clearOptimistic(sessionId = null) {
+    if (!this._optimistic) return;
+    if (sessionId == null || String(this._optimistic.sessionId) === String(sessionId)) {
+      this._optimistic = null;
+      this._tick += 1;
+    }
+  }
+
+  _applyOptimisticView(linkedSessionId, derivedSteps, currentStep, targetTemperature, totalMinutesRemaining) {
+    const optimistic = this._optimistic;
+    if (!optimistic) {
+      return { currentStep, targetTemperature, totalMinutesRemaining };
+    }
+    if (optimistic.expiresAt < Date.now()) {
+      this._clearOptimistic();
+      return { currentStep, targetTemperature, totalMinutesRemaining };
+    }
+    if (String(optimistic.sessionId) !== String(linkedSessionId)) {
+      return { currentStep, targetTemperature, totalMinutesRemaining };
+    }
+
+    let nextStep = currentStep ? { ...currentStep } : null;
+    let nextTargetTemperature = targetTemperature;
+    let nextTotalMinutesRemaining = totalMinutesRemaining;
+    let effectiveAdvanceSteps = Number(optimistic.advanceSteps || 0);
+    let effectiveTemperatureDelta = Number(optimistic.temperatureDelta || 0);
+    let effectiveDurationDelta = Number(optimistic.durationDeltaMinutes || 0);
+
+    if (
+      optimistic.baseTargetTemperature != null
+      && nextTargetTemperature != null
+      && Number.isFinite(Number(optimistic.baseTargetTemperature))
+      && Number.isFinite(Number(nextTargetTemperature))
+      && effectiveTemperatureDelta !== 0
+    ) {
+      const observedTargetDelta = Number(nextTargetTemperature) - Number(optimistic.baseTargetTemperature);
+      const expectedSign = Math.sign(effectiveTemperatureDelta);
+      if (Math.sign(observedTargetDelta) === expectedSign) {
+        const consumed = Math.min(Math.abs(observedTargetDelta), Math.abs(effectiveTemperatureDelta));
+        effectiveTemperatureDelta -= consumed * expectedSign;
+      }
+    }
+
+    if (
+      optimistic.baseTotalMinutesRemaining != null
+      && nextTotalMinutesRemaining != null
+      && Number.isFinite(Number(optimistic.baseTotalMinutesRemaining))
+      && Number.isFinite(Number(nextTotalMinutesRemaining))
+      && effectiveDurationDelta !== 0
+    ) {
+      const observedDurationDelta = Number(nextTotalMinutesRemaining) - Number(optimistic.baseTotalMinutesRemaining);
+      const expectedSign = Math.sign(effectiveDurationDelta);
+      if (Math.sign(observedDurationDelta) === expectedSign) {
+        const consumed = Math.min(Math.abs(observedDurationDelta), Math.abs(effectiveDurationDelta));
+        effectiveDurationDelta -= consumed * expectedSign;
+      }
+    }
+
+    if (
+      optimistic.baseStepIndex != null
+      && nextStep
+      && Number.isFinite(Number(optimistic.baseStepIndex))
+      && Number.isFinite(Number(nextStep.index))
+      && effectiveAdvanceSteps > 0
+    ) {
+      const observedAdvance = Math.max(0, Number(nextStep.index) - Number(optimistic.baseStepIndex));
+      effectiveAdvanceSteps = Math.max(0, effectiveAdvanceSteps - observedAdvance);
+    }
+
+    if (effectiveAdvanceSteps > 0 && nextStep && Array.isArray(derivedSteps) && derivedSteps.length > 0) {
+      let advanceCount = effectiveAdvanceSteps;
+      while (advanceCount > 0 && nextStep.index < (nextStep.total - 1)) {
+        const nextIndex = nextStep.index + 1;
+        const rawNext = derivedSteps[nextIndex] || {};
+        const nextDuration = Number(rawNext.duration_minutes ?? rawNext.time ?? 0);
+        nextStep = {
+          ...nextStep,
+          index: nextIndex,
+          name: rawNext.name || `Step ${nextIndex + 1}`,
+          temperature: rawNext.temperature,
+          duration_minutes: nextDuration,
+          minutes_elapsed: 0,
+          minutes_remaining: Math.max(0, nextDuration),
+        };
+        if (rawNext.temperature != null) {
+          nextTargetTemperature = Number(rawNext.temperature);
+        }
+        advanceCount -= 1;
+      }
+    }
+
+    if (effectiveTemperatureDelta !== 0 && nextTargetTemperature != null) {
+      nextTargetTemperature = Number(nextTargetTemperature) + Number(effectiveTemperatureDelta);
+    }
+
+    if (effectiveDurationDelta !== 0) {
+      if (nextStep) {
+        nextStep.minutes_remaining = Math.max(
+          0,
+          Number(nextStep.minutes_remaining || 0) + Number(effectiveDurationDelta),
+        );
+      }
+      if (nextTotalMinutesRemaining != null) {
+        nextTotalMinutesRemaining = Math.max(
+          0,
+          Number(nextTotalMinutesRemaining) + Number(effectiveDurationDelta),
+        );
+      }
+    }
+
+    if (effectiveTemperatureDelta === 0 && effectiveDurationDelta === 0 && effectiveAdvanceSteps === 0) {
+      this._clearOptimistic(linkedSessionId);
+    }
+
+    return {
+      currentStep: nextStep,
+      targetTemperature: nextTargetTemperature,
+      totalMinutesRemaining: nextTotalMinutesRemaining,
+    };
+  }
+
   render() {
     if (!this.hass) return nothing;
 
@@ -698,14 +1029,28 @@ class GrainfatherFermentationDeviceCard extends LitElement {
 
     const attrs       = tempEntity.attributes;
     const lang        = this._lang();
-    const unit        = _normUnit(this._config?.density_unit);
+    const unit        = _resolveDensityUnit(this._config?.density_unit, attrs);
 
     // Device meta (prefer explicit override, then live state, then history)
     const deviceHistoryLatest = _latestFromHistory(attrs.history_points);
     const configuredTempState = this._getConfiguredTemperatureOverrideState();
+    const liveTemperature = _isValidNumber(tempEntity.state) ? Number(tempEntity.state) : null;
     let currentTempRaw = _isValidNumber(configuredTempState)
       ? configuredTempState
-      : (_isValidNumber(tempEntity.state) ? tempEntity.state : deviceHistoryLatest.temperature);
+      : (liveTemperature != null ? liveTemperature : deviceHistoryLatest.temperature);
+
+    // Keep temperature device-local: if live state is exactly 0.0 and local history has
+    // a valid non-zero reading, prefer local history over cross-device/session fallbacks.
+    if (
+      !_isValidNumber(configuredTempState)
+      && liveTemperature != null
+      && Math.abs(liveTemperature) <= 0.05
+      && deviceHistoryLatest.temperature != null
+      && Number.isFinite(Number(deviceHistoryLatest.temperature))
+      && Math.abs(Number(deviceHistoryLatest.temperature)) > 0.05
+    ) {
+      currentTempRaw = Number(deviceHistoryLatest.temperature);
+    }
 
     // Gravity – prefer explicit sources, fallback to history
     const configuredGravityState = this._getConfiguredGravityOverrideState();
@@ -735,6 +1080,7 @@ class GrainfatherFermentationDeviceCard extends LitElement {
 
     let matchedBatchAttrs = null;
     let matchedBatchSensorId = null;
+    let isFermenting = String(attrs?.status || '').toLowerCase() === 'fermenting';
     if (hasSession && this.hass) {
       const batchSensorId = Object.keys(this.hass.states).find((id) => {
         if (!id.endsWith('_batch_number')) return false;
@@ -745,6 +1091,7 @@ class GrainfatherFermentationDeviceCard extends LitElement {
         matchedBatchSensorId = batchSensorId;
         const batchAttrs = this.hass.states[batchSensorId].attributes;
         matchedBatchAttrs = batchAttrs;
+        isFermenting = String(batchAttrs?.status || '').toLowerCase() === 'fermenting';
         derivedSteps = batchAttrs.fermentation_steps || derivedSteps;
         derivedStart = batchAttrs.fermentation_start_date || derivedStart;
         batchVariantName = batchAttrs.batch_variant_name || batchVariantName;
@@ -752,9 +1099,6 @@ class GrainfatherFermentationDeviceCard extends LitElement {
         // Hard fallback for split/controller setups:
         // if live device values are empty, use latest value directly from session history.
         const sessionHistoryLatest = _latestFromHistory(batchAttrs.history_points);
-        if (!_isValidNumber(currentTempRaw) && sessionHistoryLatest.temperature != null) {
-          currentTempRaw = sessionHistoryLatest.temperature;
-        }
         if ((gravRaw == null || !_isValidNumber(gravRaw)) && sessionHistoryLatest.specific_gravity != null) {
           gravRaw = String(sessionHistoryLatest.specific_gravity);
         }
@@ -828,6 +1172,25 @@ class GrainfatherFermentationDeviceCard extends LitElement {
       }
     }
 
+    this._lastRenderSnapshot = {
+      sessionId: linkedSessionId,
+      stepIndex: currentStep?.index ?? null,
+      targetTemperature: targetTemperature != null ? Number(targetTemperature) : null,
+      totalMinutesRemaining: totalMinutesRemaining != null ? Number(totalMinutesRemaining) : null,
+      stepDurationMinutes: currentStep?.duration_minutes ?? null,
+    };
+
+    const optimisticView = this._applyOptimisticView(
+      linkedSessionId,
+      derivedSteps,
+      currentStep,
+      targetTemperature,
+      totalMinutesRemaining,
+    );
+    const displayedStep = optimisticView.currentStep;
+    const displayedTargetTemperature = optimisticView.targetTemperature;
+    const displayedTotalMinutesRemaining = optimisticView.totalMinutesRemaining;
+
     // Pretty device name: strip entry_id prefix if friendly_name not useful
     const displayName = _resolveDisplayName(attrs);
 
@@ -841,13 +1204,13 @@ class GrainfatherFermentationDeviceCard extends LitElement {
         </div>
 
         ${hasSession
-          ? this._renderActive(lang, currentTemp, targetTemperature, gravity, currentStep, stepCount, unit, abv, totalMinutesRemaining)
+          ? this._renderActive(lang, currentTemp, displayedTargetTemperature, gravity, displayedStep, stepCount, unit, abv, displayedTotalMinutesRemaining, derivedSteps, isFermenting)
           : this._renderPassive(lang, currentTemp, gravity)}
       </ha-card>
     `;
   }
 
-  _renderActive(lang, currentTemp, targetTemperature, gravity, currentStep, stepCount, unit, abv, totalMinutesRemaining) {
+  _renderActive(lang, currentTemp, targetTemperature, gravity, currentStep, stepCount, unit, abv, totalMinutesRemaining, derivedSteps = [], isFermenting = false) {
     const stageLabel = currentStep
       ? `${currentStep.index + 1}/${currentStep.total}`
       : `—/${stepCount || '?'}`;
@@ -857,6 +1220,7 @@ class GrainfatherFermentationDeviceCard extends LitElement {
     const targetDisplay = targetTemperature != null ? `${parseFloat(targetTemperature).toFixed(1)} °C` : '—';
     const totalTimeDisplay = totalMinutesRemaining != null ? _fmtTimeLeft(totalMinutesRemaining) : '—';
     const abvDisplay = _fmtABV(abv);
+    const showFermentationSteps = this._config?.show_fermentation_steps !== false;
 
     return html`
       <div class="metrics active">
@@ -877,10 +1241,9 @@ class GrainfatherFermentationDeviceCard extends LitElement {
         <div class="metric stage-main">
           <div class="metric-label">
             ${_iconStages()} ${_t(lang, 'stage')}
-            ${stepName ? html`<span class="stage-step-inline">- ${stepName}</span>` : nothing}
           </div>
           <div class="stage-fraction">
-            <span class="stage-current">${currentStep ? currentStep.index + 1 : '—'}</span><span class="stage-sep">/</span><span class="stage-total">${currentStep ? currentStep.total : (stepCount || '?')}</span>
+            <span class="stage-current">${currentStep ? currentStep.index + 1 : '—'}</span><span class="stage-sep">/</span><span class="stage-total">${currentStep ? currentStep.total : (stepCount || '?')}</span>${stepName ? html`<span class="stage-name-inline">- ${stepName}</span>` : nothing}
           </div>
         </div>
 
@@ -909,6 +1272,41 @@ class GrainfatherFermentationDeviceCard extends LitElement {
           <div class="metric-value white">${totalTimeDisplay}</div>
         </div>
       </div>
+
+      ${showFermentationSteps && Array.isArray(derivedSteps) && derivedSteps.length > 0
+        ? html`
+            <div class="steps-section">
+              <div class="steps-title">Fermentation steps</div>
+              ${derivedSteps.map((step, index) => html`
+                <div class=${`step-row ${isFermenting && currentStep && index === currentStep.index ? 'current' : ''}`}>
+                  <span class="step-name">${step.name || `Step ${index + 1}`}</span>
+                  <span class="step-meta">${_fmtStepMeta(step)}</span>
+                </div>
+              `)}
+            </div>
+          `
+        : nothing}
+
+      ${currentStep ? html`
+        <div class="actions-bar">
+          <div class="actions-group">
+            <div class="actions-group-label">${_iconThermometer()}</div>
+            <button class="action-btn" @click=${() => this._handleAdjustTemperature(-1)}>−1°</button>
+            <button class="action-btn" @click=${() => this._handleAdjustTemperature(+1)}>+1°</button>
+          </div>
+          <div class="actions-group">
+            <div class="actions-group-label">${_iconClock()}</div>
+            <button class="action-btn" @click=${() => this._handleAdjustDuration(-1, 1440)}>−1d</button>
+            <button class="action-btn" @click=${() => this._handleAdjustDuration(+1, 1440)}>+1d</button>
+            <button class="action-btn" @click=${() => this._handleAdjustDuration(-1, 60)}>−1h</button>
+            <button class="action-btn" @click=${() => this._handleAdjustDuration(+1, 60)}>+1h</button>
+          </div>
+          <div class="actions-group">
+            <div class="actions-group-label"></div>
+            <button class="action-btn wide" @click=${() => this._handleNextStep()}>➜ Next Step</button>
+          </div>
+        </div>
+      ` : nothing}
     `;
   }
 
@@ -926,6 +1324,221 @@ class GrainfatherFermentationDeviceCard extends LitElement {
       </div>
       <div class="no-session-strip">${_t(lang, 'no_session')}</div>
     `;
+  }
+
+  _handleAdjustTemperature(delta) {
+    this._queueTemperatureAdjustment(delta);
+  }
+
+  _handleAdjustDuration(direction, minutes) {
+    const delta = direction > 0 ? minutes : -minutes;
+    this._queueDurationAdjustment(delta);
+  }
+
+  _handleNextStep() {
+    this._callAdvanceStepService();
+  }
+
+  _queueTemperatureAdjustment(delta) {
+    const entityId = this._resolveTemperatureEntityId();
+    if (!entityId || !this.hass) return;
+    const attrs = this.hass.states[entityId]?.attributes || {};
+    const linkedSessionId = attrs.linked_brew_session_id;
+    if (linkedSessionId === null) {
+      alert('No active brew session');
+      return;
+    }
+
+    // Clamp: temperature must stay >= 0.
+    const snapshot = this._lastRenderSnapshot;
+    const baseTemp = (snapshot && String(snapshot.sessionId) === String(linkedSessionId))
+      ? (snapshot.targetTemperature ?? 0)
+      : 0;
+    const key = String(linkedSessionId);
+    const pending = this._pendingBySession.get(key);
+    const accumulatedDelta = pending ? pending.temperatureDelta : 0;
+    if (baseTemp + accumulatedDelta + delta < 0) return;
+
+    this._pushOptimisticUpdate(linkedSessionId, { temperatureDelta: delta });
+    this._queuePendingAdjustment(linkedSessionId, entityId, { temperatureDelta: delta });
+  }
+
+  _queueDurationAdjustment(deltaMinutes) {
+    const entityId = this._resolveTemperatureEntityId();
+    if (!entityId || !this.hass) return;
+    const attrs = this.hass.states[entityId]?.attributes || {};
+    const linkedSessionId = attrs.linked_brew_session_id;
+    if (linkedSessionId === null) {
+      alert('No active brew session');
+      return;
+    }
+
+    // Clamp: if resulting step duration would be <= 0, fire advance step instead.
+    const snapshot = this._lastRenderSnapshot;
+    const baseDuration = (snapshot && String(snapshot.sessionId) === String(linkedSessionId))
+      ? (snapshot.stepDurationMinutes ?? 0)
+      : 0;
+    const key = String(linkedSessionId);
+    const pending = this._pendingBySession.get(key);
+    const accumulatedDelta = pending ? pending.durationDeltaMinutes : 0;
+    if (baseDuration + accumulatedDelta + deltaMinutes <= 0) {
+      this._callAdvanceStepService();
+      return;
+    }
+
+    this._pushOptimisticUpdate(linkedSessionId, { durationDeltaMinutes: deltaMinutes });
+    this._queuePendingAdjustment(linkedSessionId, entityId, { durationDeltaMinutes: deltaMinutes });
+  }
+
+  _queuePendingAdjustment(sessionId, entityId, patch) {
+    const key = String(sessionId);
+    const snapshot = this._lastRenderSnapshot;
+    const sameSession = snapshot && String(snapshot.sessionId) === String(sessionId);
+    const existing = this._pendingBySession.get(key) || {
+      entityId,
+      temperatureDelta: 0,
+      durationDeltaMinutes: 0,
+      baseTemperature: sameSession ? snapshot.targetTemperature : null,
+      baseDurationMinutes: sameSession ? snapshot.stepDurationMinutes : null,
+    };
+
+    const next = {
+      entityId: entityId || existing.entityId,
+      temperatureDelta: existing.temperatureDelta + Number(patch.temperatureDelta || 0),
+      durationDeltaMinutes: existing.durationDeltaMinutes + Number(patch.durationDeltaMinutes || 0),
+      baseTemperature: existing.baseTemperature,
+      baseDurationMinutes: existing.baseDurationMinutes,
+    };
+    this._pendingBySession.set(key, next);
+
+    const previousTimer = this._flushTimers.get(key);
+    if (previousTimer) {
+      clearTimeout(previousTimer);
+    }
+
+    const timerId = window.setTimeout(() => {
+      this._flushQueuedAdjustments(key).catch((e) => {
+        console.warn('Queued adjustment flush error:', e);
+      });
+    }, 10000);
+    this._flushTimers.set(key, timerId);
+  }
+
+  async _flushQueuedAdjustments(sessionKey) {
+    if (!this.hass) return;
+
+    const pending = this._pendingBySession.get(sessionKey);
+    if (!pending) return;
+
+    this._pendingBySession.delete(sessionKey);
+    const timerId = this._flushTimers.get(sessionKey);
+    if (timerId) {
+      clearTimeout(timerId);
+      this._flushTimers.delete(sessionKey);
+    }
+
+    const linkedSessionId = Number(sessionKey);
+
+    try {
+      if (pending.temperatureDelta !== 0 && pending.baseTemperature != null) {
+        const targetTemperature = Math.round((pending.baseTemperature + pending.temperatureDelta) * 10) / 10;
+        await this.hass.callService('grainfather', 'adjust_current_step_temperature', {
+          brew_session_id: linkedSessionId,
+          temperature: targetTemperature,
+        });
+      }
+
+      if (pending.durationDeltaMinutes !== 0 && pending.baseDurationMinutes != null) {
+        const durationMinutes = Math.max(1, Math.round(pending.baseDurationMinutes + pending.durationDeltaMinutes));
+        await this.hass.callService('grainfather', 'adjust_current_step_duration', {
+          brew_session_id: linkedSessionId,
+          duration_minutes: durationMinutes,
+        });
+      }
+
+      if (this._optimistic && String(this._optimistic.sessionId) === String(linkedSessionId)) {
+        this._optimistic = {
+          ...this._optimistic,
+          expiresAt: Date.now() + 120000,
+        };
+      }
+      this._refreshLinkedEntities(pending.entityId, linkedSessionId);
+    } catch (e) {
+      this._clearOptimistic(linkedSessionId);
+      alert(`Error: ${e.message || e}`);
+    }
+  }
+
+  _callAdvanceStepService() {
+    const entityId = this._resolveTemperatureEntityId();
+    if (!entityId || !this.hass) return;
+    const attrs = this.hass.states[entityId]?.attributes || {};
+    const linkedSessionId = attrs.linked_brew_session_id;
+    if (linkedSessionId === null) {
+      alert('No active brew session');
+      return;
+    }
+    this._pushOptimisticUpdate(linkedSessionId, { advanceSteps: 1 });
+    this.hass.callService('grainfather', 'advance_to_next_fermentation_step', {
+      brew_session_id: linkedSessionId,
+    }).then(() => {
+      this._refreshLinkedEntities(entityId, linkedSessionId);
+    }).catch(e => {
+      this._clearOptimistic(linkedSessionId);
+      alert(`Error: ${e.message || e}`);
+    });
+  }
+
+  _getLinkedEntityIds(temperatureEntityId, linkedSessionId) {
+    if (!this.hass) return [temperatureEntityId];
+
+    const entities = new Set([temperatureEntityId]);
+    const prefix = temperatureEntityId.replace(/_temperature$/, '');
+
+    // Include sibling sensors derived from the same base id.
+    for (const suffix of ['_gravity', '_batch_number', '_abv', '_original_gravity']) {
+      const entityId = `${prefix}${suffix}`;
+      if (this.hass.states[entityId]) {
+        entities.add(entityId);
+      }
+    }
+
+    // Include any batch_number sensors matching the linked session id.
+    if (linkedSessionId != null) {
+      for (const id of Object.keys(this.hass.states)) {
+        if (!id.endsWith('_batch_number')) continue;
+        const state = this.hass.states[id];
+        if (String(state?.attributes?.brew_session_id) === String(linkedSessionId)) {
+          entities.add(id);
+        }
+      }
+    }
+
+    return Array.from(entities);
+  }
+
+  _refreshEntityList(entityIds) {
+    if (!this.hass || !Array.isArray(entityIds) || entityIds.length === 0) return;
+    this.hass.callService('homeassistant', 'update_entity', {
+      entity_id: entityIds,
+    }).catch(e => console.warn('Entity refresh error:', e));
+  }
+
+  _refreshLinkedEntities(temperatureEntityId, linkedSessionId) {
+    if (!this.hass) return;
+
+    const entitiesToRefresh = this._getLinkedEntityIds(temperatureEntityId, linkedSessionId);
+
+    // Immediate refresh plus short retries for APIs with eventual consistency.
+    this._refreshEntityList(entitiesToRefresh);
+    this._tick += 1;
+
+    for (const delayMs of [1500, 4000, 8000]) {
+      window.setTimeout(() => {
+        this._refreshEntityList(entitiesToRefresh);
+        this._tick += 1;
+      }, delayMs);
+    }
   }
 }
 
