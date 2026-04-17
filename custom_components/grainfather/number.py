@@ -28,39 +28,75 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: GrainfatherDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    known_unique_ids: set[str] = set()
+
+    entities = _build_number_entities(coordinator, entry, known_unique_ids)
+    async_add_entities(entities)
+
+    def _async_handle_coordinator_update() -> None:
+        new_entities = _build_number_entities(coordinator, entry, known_unique_ids)
+        if new_entities:
+            async_add_entities(new_entities)
+
+    entry.async_on_unload(coordinator.async_add_listener(_async_handle_coordinator_update))
+
+
+def _build_number_entities(
+    coordinator: GrainfatherDataUpdateCoordinator,
+    entry: ConfigEntry,
+    known_unique_ids: set[str],
+) -> list[NumberEntity]:
     entities: list[NumberEntity] = []
 
     for session in coordinator.data.brew_sessions:
+        session_fragment = brew_session_unique_fragment(session)
         for step_index in range(len(session.fermentation_steps)):
-            entities.append(
-                GrainfatherFermentationStepDurationNumber(
-                    coordinator,
-                    entry,
-                    session.batch_id,
-                    brew_session_unique_fragment(session),
-                    step_index,
-                )
+            duration_unique_id = (
+                f"{entry.entry_id}_session_{session_fragment}_step_{step_index}_duration"
             )
-            entities.append(
-                GrainfatherFermentationStepTemperatureNumber(
-                    coordinator,
-                    entry,
-                    session.batch_id,
-                    brew_session_unique_fragment(session),
-                    step_index,
+            if duration_unique_id not in known_unique_ids:
+                known_unique_ids.add(duration_unique_id)
+                entities.append(
+                    GrainfatherFermentationStepDurationNumber(
+                        coordinator,
+                        entry,
+                        session.batch_id,
+                        session_fragment,
+                        step_index,
+                    )
                 )
-            )
-            entities.append(
-                GrainfatherFermentationStepFinishTemperatureNumber(
-                    coordinator,
-                    entry,
-                    session.batch_id,
-                    brew_session_unique_fragment(session),
-                    step_index,
-                )
-            )
 
-    async_add_entities(entities)
+            temperature_unique_id = (
+                f"{entry.entry_id}_session_{session_fragment}_step_{step_index}_temperature"
+            )
+            if temperature_unique_id not in known_unique_ids:
+                known_unique_ids.add(temperature_unique_id)
+                entities.append(
+                    GrainfatherFermentationStepTemperatureNumber(
+                        coordinator,
+                        entry,
+                        session.batch_id,
+                        session_fragment,
+                        step_index,
+                    )
+                )
+
+            finish_temperature_unique_id = (
+                f"{entry.entry_id}_session_{session_fragment}_step_{step_index}_finish_temperature"
+            )
+            if finish_temperature_unique_id not in known_unique_ids:
+                known_unique_ids.add(finish_temperature_unique_id)
+                entities.append(
+                    GrainfatherFermentationStepFinishTemperatureNumber(
+                        coordinator,
+                        entry,
+                        session.batch_id,
+                        session_fragment,
+                        step_index,
+                    )
+                )
+
+    return entities
 
 
 class GrainfatherFermentationStepDurationNumber(

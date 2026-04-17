@@ -94,6 +94,21 @@ def test_parse_batch_payload_reads_style_from_recipe_style_sub_category_name() -
     assert batch.style_name == "American IPA"
 
 
+def test_parse_batch_payload_reads_style_from_top_level_recipe_style() -> None:
+    payload = {
+        "id": 1378631,
+        "session_name": "Orange IPA #271",
+        "recipe_style": {
+            "sub_category_name": "American IPA",
+        },
+    }
+
+    batch = parse_batch_payload(payload)
+
+    assert batch is not None
+    assert batch.style_name == "American IPA"
+
+
 def test_parse_batch_payload_reads_recipe_image_url_fallback() -> None:
     payload = {
         "id": 1,
@@ -458,6 +473,71 @@ def test_async_get_snapshot_indexes_history_by_device_and_brew_session() -> None
     assert len(snapshot.fermentation_history_by_device_id[69884]) == 1
     assert 1378631 in snapshot.brew_session_history_by_batch_id
     assert len(snapshot.brew_session_history_by_batch_id[1378631]) == 1
+
+
+def test_async_get_snapshot_preserves_style_from_summary_when_detail_omits_it() -> None:
+    class FakeGrainfatherApiClient(GrainfatherApiClient):
+        def __init__(self) -> None:
+            self._session = None
+            self._email = ""
+            self._password = ""
+            self._base_url = "https://community.grainfather.com/api"
+            self._access_token = "token"
+            self._account = None
+
+        async def async_get_brew_sessions(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "id": 1378631,
+                    "session_name": "Orange IPA #271",
+                    "batch_number": 271,
+                    "status": 20,
+                    "recipe": {
+                        "id": 12,
+                        "name": "Orange IPA",
+                        "recipe_style": {
+                            "sub_category_name": "American IPA",
+                        },
+                    },
+                }
+            ]
+
+        async def async_get_brew_session_detail(
+            self,
+            recipe_id: int,
+            brew_session_id: int,
+        ) -> dict[str, Any]:
+            del recipe_id, brew_session_id
+            return {
+                "id": 1378631,
+                "status": 20,
+                "session_name": "Orange IPA #271",
+                "recipe": {
+                    "id": 12,
+                    "name": "Orange IPA",
+                },
+            }
+
+        async def _request_json(
+            self,
+            method: str,
+            path: str,
+            *,
+            json_payload=None,
+            query_params=None,
+            retry_on_auth_error: bool = True,
+        ):
+            del method, json_payload, query_params, retry_on_auth_error
+            if path == "/equipment/fermentation-devices":
+                return []
+            return []
+
+    client = FakeGrainfatherApiClient()
+
+    snapshot = asyncio.run(client.async_get_snapshot())
+
+    assert len(snapshot.brew_sessions) == 1
+    assert snapshot.brew_sessions[0].style_name == "American IPA"
 
 
 def test_async_set_fermentation_step_duration_updates_temperature_and_ramp_fields() -> None:

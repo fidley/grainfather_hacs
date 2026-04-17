@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
@@ -186,25 +187,62 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: GrainfatherDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    known_unique_ids: set[str] = set()
+
+    entities = _build_sensor_entities(coordinator, entry, known_unique_ids)
+    async_add_entities(entities)
+
+    def _async_handle_coordinator_update() -> None:
+        new_entities = _build_sensor_entities(coordinator, entry, known_unique_ids)
+        if new_entities:
+            async_add_entities(new_entities)
+
+    entry.async_on_unload(coordinator.async_add_listener(_async_handle_coordinator_update))
+
+
+def _build_sensor_entities(
+    coordinator: GrainfatherDataUpdateCoordinator,
+    entry: ConfigEntry,
+    known_unique_ids: set[str],
+) -> list[SensorEntity]:
     entities: list[SensorEntity] = []
 
     for session in coordinator.data.brew_sessions:
-        entities.extend(
-            GrainfatherSessionSensor(
-                coordinator,
-                entry,
-                session.batch_id,
-                brew_session_unique_fragment(session),
-                description,
+        session_fragment = brew_session_unique_fragment(session)
+        for description in SESSION_SENSORS:
+            unique_id = f"{entry.entry_id}_session_{session_fragment}_{description.key}"
+            if unique_id in known_unique_ids:
+                continue
+            known_unique_ids.add(unique_id)
+            entities.append(
+                GrainfatherSessionSensor(
+                    coordinator,
+                    entry,
+                    session.batch_id,
+                    session_fragment,
+                    description,
+                )
             )
-            for description in SESSION_SENSORS
-        )
 
     for device in coordinator.data.fermentation_devices:
-        entities.append(GrainfatherFermDeviceTemperatureSensor(coordinator, entry, device.device_id))
-        entities.append(GrainfatherFermDeviceGravitySensor(coordinator, entry, device.device_id))
+        if device.device_id is None:
+            continue
 
-    async_add_entities(entities)
+        temp_unique_id = f"{entry.entry_id}_fermdevice_{device.device_id}_temperature"
+        if temp_unique_id not in known_unique_ids:
+            known_unique_ids.add(temp_unique_id)
+            entities.append(
+                GrainfatherFermDeviceTemperatureSensor(coordinator, entry, device.device_id)
+            )
+
+        gravity_unique_id = f"{entry.entry_id}_fermdevice_{device.device_id}_gravity"
+        if gravity_unique_id not in known_unique_ids:
+            known_unique_ids.add(gravity_unique_id)
+            entities.append(
+                GrainfatherFermDeviceGravitySensor(coordinator, entry, device.device_id)
+            )
+
+    return entities
 
 
 class GrainfatherSessionSensor(
@@ -289,6 +327,7 @@ class GrainfatherFermDeviceTemperatureSensor(
     SensorEntity,
 ):
     _attr_translation_key = "fermdevice_temperature"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_suggested_display_precision = 2
 
@@ -339,6 +378,7 @@ class GrainfatherFermDeviceTemperatureSensor(
             "grainfather_entity_type": "fermentation_device",
             "device_id": device.device_id,
             "last_heard": device.last_heard,
+            "last_specific_gravity": device.last_specific_gravity,
             "linked_brew_session_id": device.linked_brew_session_id,
             "linked_brew_session_name": device.linked_brew_session_name,
             "is_controller_linked": device.is_controller_linked,

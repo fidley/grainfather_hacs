@@ -32,28 +32,59 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: GrainfatherDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = [
-        GrainfatherSessionStatusSelect(
-            coordinator,
-            entry,
-            session.batch_id,
-            brew_session_unique_fragment(session),
-        )
-        for session in coordinator.data.brew_sessions
-    ]
+    known_unique_ids: set[str] = set()
+
+    entities = _build_select_entities(coordinator, entry, known_unique_ids)
+    async_add_entities(entities)
+
+    def _async_handle_coordinator_update() -> None:
+        new_entities = _build_select_entities(coordinator, entry, known_unique_ids)
+        if new_entities:
+            async_add_entities(new_entities)
+
+    entry.async_on_unload(coordinator.async_add_listener(_async_handle_coordinator_update))
+
+
+def _build_select_entities(
+    coordinator: GrainfatherDataUpdateCoordinator,
+    entry: ConfigEntry,
+    known_unique_ids: set[str],
+) -> list[SelectEntity]:
+    entities: list[SelectEntity] = []
+
     for session in coordinator.data.brew_sessions:
+        session_fragment = brew_session_unique_fragment(session)
+
+        status_unique_id = f"{entry.entry_id}_session_{session_fragment}_status_select"
+        if status_unique_id not in known_unique_ids:
+            known_unique_ids.add(status_unique_id)
+            entities.append(
+                GrainfatherSessionStatusSelect(
+                    coordinator,
+                    entry,
+                    session.batch_id,
+                    session_fragment,
+                )
+            )
+
         for step_index in range(len(session.fermentation_steps)):
+            ramp_unique_id = (
+                f"{entry.entry_id}_session_{session_fragment}_step_{step_index}_ramp_select"
+            )
+            if ramp_unique_id in known_unique_ids:
+                continue
+            known_unique_ids.add(ramp_unique_id)
             entities.append(
                 GrainfatherFermentationStepRampSelect(
                     coordinator,
                     entry,
                     session.batch_id,
-                    brew_session_unique_fragment(session),
+                    session_fragment,
                     step_index,
                 )
             )
 
-    async_add_entities(entities)
+    return entities
 
 
 class GrainfatherSessionStatusSelect(

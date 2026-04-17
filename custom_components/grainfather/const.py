@@ -12,7 +12,9 @@ CONF_STATUS = "status"
 CONF_FERMENTATION_STEPS = "fermentation_steps"
 CONF_STEP_INDEX = "step_index"
 CONF_DURATION_MINUTES = "duration_minutes"
+CONF_DELTA_MINUTES = "delta_minutes"
 CONF_TEMPERATURE = "temperature"
+CONF_DELTA_TEMPERATURE = "delta_temperature"
 CONF_IS_RAMP_STEP = "is_ramp_step"
 CONF_FINISH_TEMPERATURE = "finish_temperature"
 CONF_SCAN_INTERVAL = "scan_interval"
@@ -31,6 +33,9 @@ SERVICE_SET_FERMENTATION_STEP_DURATION = "set_fermentation_step_duration"
 SERVICE_CLEAR_FERMENTATION_STEP_FINISH_TEMPERATURE = (
     "clear_fermentation_step_finish_temperature"
 )
+SERVICE_ADJUST_CURRENT_STEP_TEMPERATURE = "adjust_current_step_temperature"
+SERVICE_ADJUST_CURRENT_STEP_DURATION = "adjust_current_step_duration"
+SERVICE_ADVANCE_TO_NEXT_FERMENTATION_STEP = "advance_to_next_fermentation_step"
 
 BREW_SESSION_STATUS_MAP = {
 	"planning": 5,

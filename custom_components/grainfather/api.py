@@ -153,6 +153,7 @@ class GrainfatherApiClient:
 
         brew_sessions: list[GrainfatherBrewSession] = []
         for session_item in sessions_list:
+            summary_batch = parse_batch_payload(session_item)
             recipe_id = _to_int(_first_value(session_item, "recipe_id")) or _to_int(
                 _first_value(session_item.get("recipe") or {}, "id")
             )
@@ -164,10 +165,17 @@ class GrainfatherApiClient:
                 try:
                     detail_payload = await self.async_get_brew_session_detail(recipe_id, batch_id)
                     batch = parse_batch_payload(detail_payload)
+                    if (
+                        batch is not None
+                        and summary_batch is not None
+                        and not batch.style_name
+                        and summary_batch.style_name
+                    ):
+                        batch.style_name = summary_batch.style_name
                 except GrainfatherApiError:
-                    batch = parse_batch_payload(session_item)
+                    batch = summary_batch
             else:
-                batch = parse_batch_payload(session_item)
+                batch = summary_batch
 
             if batch is not None:
                 brew_sessions.append(batch)
@@ -426,7 +434,13 @@ def parse_batch_payload(payload: dict[str, Any] | None) -> GrainfatherBrewSessio
 
     recipe_payload = payload.get("recipe") or {}
     recipe_image_payload = recipe_payload.get("image") or {}
-    recipe_style_payload = recipe_payload.get("recipe_style") or recipe_payload.get("recipeStyle") or {}
+    recipe_style_payload = (
+        recipe_payload.get("recipe_style")
+        or recipe_payload.get("recipeStyle")
+        or payload.get("recipe_style")
+        or payload.get("recipeStyle")
+        or {}
+    )
     equipment_payload = payload.get("equipment_profile") or {}
     batch_variant_payload = payload.get("batch_variant") or payload.get("batchVariant") or {}
     fermentation_device_ids = tuple(_parse_int_list(payload.get("fermentation_devices") or []))
@@ -464,9 +478,8 @@ def parse_batch_payload(payload: dict[str, Any] | None) -> GrainfatherBrewSessio
                 payload,
                 "batch_variant_name",
                 "batchVariantName",
-                "batch_variant",
-                "batchVariant",
             )
+            or _first_value(payload.get("batchVariant") or {}, "name", "title")
             or _first_value(batch_variant_payload, "name", "title")
         ),
         status=_to_int(_first_value(payload, "status", "state")),

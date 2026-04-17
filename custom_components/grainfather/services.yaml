@@ -112,3 +112,64 @@ clear_fermentation_step_finish_temperature:
       description: Zero-based index of the fermentation step to clear.
       required: true
       example: 0
+
+adjust_current_step_temperature:
+  name: Adjust current fermentation step temperature
+  description: Increase or decrease target temperature of the currently active fermentation step.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID when multiple Grainfather accounts are configured.
+      example: abc123def456
+    brew_session_id:
+      name: Brew session ID
+      description: Optional brew session ID. Defaults to the first fermenting session.
+      example: 1378631
+    recipe_id:
+      name: Recipe ID
+      description: Optional recipe ID for the targeted brew session.
+      example: 1275839
+    delta_temperature:
+      name: Temperature delta
+      description: Temperature change in Celsius to apply to the active step (e.g. 0.5 or -0.5).
+      required: true
+      example: 0.5
+
+adjust_current_step_duration:
+  name: Adjust current fermentation step duration
+  description: Increase or decrease duration (minutes) of the currently active fermentation step.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID when multiple Grainfather accounts are configured.
+      example: abc123def456
+    brew_session_id:
+      name: Brew session ID
+      description: Optional brew session ID. Defaults to the first fermenting session.
+      example: 1378631
+    recipe_id:
+      name: Recipe ID
+      description: Optional recipe ID for the targeted brew session.
+      example: 1275839
+    delta_minutes:
+      name: Duration delta (minutes)
+      description: Duration change in minutes to apply to the active step (e.g. 720 or -720).
+      required: true
+      example: 720
+
+advance_to_next_fermentation_step:
+  name: Advance to next fermentation step
+  description: Force progression to the next fermentation step by shortening current step duration to elapsed time.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID when multiple Grainfather accounts are configured.
+      example: abc123def456
+    brew_session_id:
+      name: Brew session ID
+      description: Optional brew session ID. Defaults to the first fermenting session.
+      example: 1378631
+    recipe_id:
+      name: Recipe ID
+      description: Optional recipe ID for the targeted brew session.
+      example: 1275839
